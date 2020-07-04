@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,29 +15,24 @@
  */
 package com.baomidou.mybatisplus.core.config;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
+import com.baomidou.mybatisplus.core.incrementer.IKeyGenerator;
+import com.baomidou.mybatisplus.core.incrementer.IdentifierGenerator;
+import com.baomidou.mybatisplus.core.injector.DefaultSqlInjector;
+import com.baomidou.mybatisplus.core.injector.ISqlInjector;
+import com.baomidou.mybatisplus.core.mapper.Mapper;
+import lombok.Data;
+import lombok.experimental.Accessors;
+import org.apache.ibatis.session.SqlSessionFactory;
+
 import java.io.Serializable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 
-import org.apache.ibatis.session.SqlSession;
-import org.apache.ibatis.session.SqlSessionFactory;
-
-import com.baomidou.mybatisplus.annotation.DbType;
-import com.baomidou.mybatisplus.annotation.FieldStrategy;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
-import com.baomidou.mybatisplus.core.handlers.SqlReservedWordsHandler;
-import com.baomidou.mybatisplus.core.incrementer.IKeyGenerator;
-import com.baomidou.mybatisplus.core.injector.ISqlInjector;
-import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
-
-import lombok.Data;
-import lombok.experimental.Accessors;
-
 /**
- * <p>
  * Mybatis 全局缓存
- * </p>
  *
  * @author Caratacus
  * @since 2016-12-06
@@ -48,13 +43,29 @@ import lombok.experimental.Accessors;
 public class GlobalConfig implements Serializable {
 
     /**
-     * 是否刷新 mapper
+     * 是否开启 LOGO
      */
-    private boolean refresh = false;
+    private boolean banner = true;
     /**
-     * 缓存 Sql 解析初始化
+     * 机器 ID 部分
+     *
+     * @see #setIdentifierGenerator(IdentifierGenerator)
+     * @deprecated 3.3.0
      */
-    private boolean sqlParserCache = false;
+    @Deprecated
+    private Long workerId;
+    /**
+     * 数据标识 ID 部分
+     *
+     * @see #setIdentifierGenerator(IdentifierGenerator)
+     * @deprecated 3.3.0
+     */
+    @Deprecated
+    private Long datacenterId;
+    /**
+     * 是否初始化 SqlRunner
+     */
+    private boolean enableSqlRunner = false;
     /**
      * 数据库相关配置
      */
@@ -62,13 +73,13 @@ public class GlobalConfig implements Serializable {
     /**
      * SQL注入器
      */
-    private ISqlInjector sqlInjector;
+    private ISqlInjector sqlInjector = new DefaultSqlInjector();
     /**
-     * 单例重用SqlSession
+     * Mapper父类
      */
-    private SqlSession sqlSession;
+    private Class<?> superMapperClass = Mapper.class;
     /**
-     * 缓存当前Configuration的SqlSessionFactory
+     * 仅用于缓存 SqlSessionFactory(外部勿进行set,set了也没用)
      */
     private SqlSessionFactory sqlSessionFactory;
     /**
@@ -79,57 +90,60 @@ public class GlobalConfig implements Serializable {
      * 元对象字段填充控制器
      */
     private MetaObjectHandler metaObjectHandler;
-
     /**
-     * <p>
-     * 标记全局设置 (统一所有入口)
-     * </p>
-     *
-     * @param sqlSessionFactory
-     * @return
+     * 主键生成器
      */
-    public SqlSessionFactory signGlobalConfig(SqlSessionFactory sqlSessionFactory) {
-        if (null != sqlSessionFactory) {
-            GlobalConfigUtils.setGlobalConfig(sqlSessionFactory.getConfiguration(), this);
-        }
-        return sqlSessionFactory;
-    }
+    private IdentifierGenerator identifierGenerator;
 
     @Data
     public static class DbConfig {
-
         /**
-         * 数据库类型
+         * 主键类型
          */
-        private DbType dbType = DbType.MYSQL;
-        /**
-         * 主键类型（默认 ID_WORKER）
-         */
-        private IdType idType = IdType.ID_WORKER;
+        private IdType idType = IdType.ASSIGN_ID;
         /**
          * 表名前缀
          */
         private String tablePrefix;
         /**
+         * schema
+         *
+         * @since 3.1.1
+         */
+        private String schema;
+        /**
+         * db字段 format
+         * <li> 例: `%s` </li>
+         * <p> 对主键无效 </p>
+         *
+         * @since 3.1.1
+         */
+        private String columnFormat;
+        /**
+         * entity字段 format,
+         * 只有在 column as property 这种情况下生效
+         * <li> 例: `%s` </li>
+         * <p> 对主键无效 </p>
+         *
+         * @since 3.3.0
+         */
+        private String propertyFormat;
+        /**
          * 表名、是否使用下划线命名（默认 true:默认数据库表下划线命名）
          */
         private boolean tableUnderline = true;
-        /**
-         * 字段名、是否使用下划线命名（默认 true:默认数据库字段下划线命名）
-         */
-        private boolean columnUnderline = true;
-        /**
-         * String 类型字段 LIKE
-         */
-        private boolean columnLike = true;
         /**
          * 大写命名
          */
         private boolean capitalMode = false;
         /**
-         * 表关键词 key 生成器
+         * 表主键生成器
          */
         private IKeyGenerator keyGenerator;
+        /**
+         * 逻辑删除全局字段 (默认无 设置会自动扫描实体字段)
+         */
+        private String logicDeleteField;
         /**
          * 逻辑删除全局值（默认 1、表示已删除）
          */
@@ -139,12 +153,22 @@ public class GlobalConfig implements Serializable {
          */
         private String logicNotDeleteValue = "0";
         /**
-         * 字段验证策略
+         * 字段验证策略之 insert
+         *
+         * @since 3.1.2
          */
-        private FieldStrategy fieldStrategy = FieldStrategy.NOT_NULL;
+        private FieldStrategy insertStrategy = FieldStrategy.NOT_NULL;
         /**
-         * Sql 保留字处理器
+         * 字段验证策略之 update
+         *
+         * @since 3.1.2
          */
-        private SqlReservedWordsHandler reservedWordsHandler = SqlReservedWordsHandler.getInstance();
+        private FieldStrategy updateStrategy = FieldStrategy.NOT_NULL;
+        /**
+         * 字段验证策略之 select
+         *
+         * @since 3.1.2
+         */
+        private FieldStrategy selectStrategy = FieldStrategy.NOT_NULL;
     }
 }

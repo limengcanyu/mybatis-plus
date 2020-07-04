@@ -3,7 +3,10 @@ package ${package.Entity};
 #foreach($pkg in ${table.importPackages})
 import ${pkg};
 #end
-
+#if(${swagger2})
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+#end
 /**
  * <p>
  * $!{table.comment}
@@ -14,6 +17,9 @@ import ${pkg};
  */
 #if(${table.convert})
 @TableName("${table.name}")
+#end
+#if(${swagger2})
+@ApiModel(value="${entity}对象", description="$!{table.comment}")
 #end
 #if(${superEntityClass})
 class ${entity} : ${superEntityClass}#if(${activeRecord})<${entity}>#end() {
@@ -29,29 +35,33 @@ class ${entity} : Serializable {
 #set($keyPropertyName=${field.propertyName})
 #end
 #if("$!field.comment" != "")
+    #if(${swagger2})
+    @ApiModelProperty(value = "${field.comment}")
+    #else
     /**
      * ${field.comment}
      */
+    #end
 #end
 #if(${field.keyFlag})
 ## 主键
 #if(${field.keyIdentityFlag})
-    @TableId(value = "${field.name}", type = IdType.AUTO)
+    @TableId(value = "${field.annotationColumnName}", type = IdType.AUTO)
 #elseif(!$null.isNull(${idType}) && "$!idType" != "")
-    @TableId(value = "${field.name}", type = IdType.${idType})
+    @TableId(value = "${field.annotationColumnName}", type = IdType.${idType})
 #elseif(${field.convert})
-    @TableId("${field.name}")
+    @TableId("${field.annotationColumnName}")
 #end
 ## 普通字段
 #elseif(${field.fill})
 ## -----   存在字段填充设置   -----
 #if(${field.convert})
-    @TableField(value = "${field.name}", fill = FieldFill.${field.fill})
+    @TableField(value = "${field.annotationColumnName}", fill = FieldFill.${field.fill})
 #else
     @TableField(fill = FieldFill.${field.fill})
 #end
 #elseif(${field.convert})
-    @TableField("${field.name}")
+    @TableField("${field.annotationColumnName}")
 #end
 ## 乐观锁注解
 #if(${versionFieldName}==${field.name})
@@ -61,7 +71,11 @@ class ${entity} : Serializable {
 #if(${logicDeleteFieldName}==${field.name})
     @TableLogic
 #end
+    #if(${field.propertyType} == "Integer")
+    var ${field.propertyName}: Int? = null
+    #else
     var ${field.propertyName}: ${field.propertyType}? = null
+    #end
 #end
 ## ----------  END 字段循环遍历  ----------
 
@@ -77,11 +91,11 @@ class ${entity} : Serializable {
 
 #end
 #if(${activeRecord})
-    override fun pkVal(): Serializable {
+    override fun pkVal(): Serializable? {
 #if(${keyPropertyName})
-        return ${keyPropertyName}!!
+        return ${keyPropertyName}
 #else
-        return id!!
+        return null
 #end
     }
 
@@ -89,7 +103,7 @@ class ${entity} : Serializable {
     override fun toString(): String {
         return "${entity}{" +
 #foreach($field in ${table.fields})
-#if($!{velocityCount}==1)
+#if($!{foreach.index}==0)
         "${field.propertyName}=" + ${field.propertyName} +
 #else
         ", ${field.propertyName}=" + ${field.propertyName} +

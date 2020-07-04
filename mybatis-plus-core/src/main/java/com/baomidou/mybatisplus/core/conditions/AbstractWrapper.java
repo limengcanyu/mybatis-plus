@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,97 +15,94 @@
  */
 package com.baomidou.mybatisplus.core.conditions;
 
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.AND;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.APPLY;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.ASC;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.BETWEEN;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.DESC;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.EQ;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.EXISTS;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.GE;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.GROUP_BY;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.GT;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.HAVING;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.IN;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.IS_NOT_NULL;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.IS_NULL;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.LE;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.LIKE;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.LT;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.NE;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.NOT;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.OR;
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.ORDER_BY;
-import static java.util.stream.Collectors.joining;
-
-import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
-
 import com.baomidou.mybatisplus.core.conditions.interfaces.Compare;
 import com.baomidou.mybatisplus.core.conditions.interfaces.Func;
 import com.baomidou.mybatisplus.core.conditions.interfaces.Join;
 import com.baomidou.mybatisplus.core.conditions.interfaces.Nested;
 import com.baomidou.mybatisplus.core.conditions.segments.MergeSegments;
 import com.baomidou.mybatisplus.core.enums.SqlKeyword;
-import com.baomidou.mybatisplus.core.toolkit.ArrayUtils;
-import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
+import com.baomidou.mybatisplus.core.enums.SqlLike;
+import com.baomidou.mybatisplus.core.toolkit.*;
+import com.baomidou.mybatisplus.core.toolkit.sql.SqlUtils;
+import com.baomidou.mybatisplus.core.toolkit.sql.StringEscape;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+
+import static com.baomidou.mybatisplus.core.enums.SqlKeyword.*;
+import static com.baomidou.mybatisplus.core.enums.WrapperKeyword.APPLY;
+import static java.util.stream.Collectors.joining;
 
 /**
- * <p>
  * 查询条件封装
- * </p>
  *
  * @author hubin miemie HCL
  * @since 2017-05-26
  */
-@SuppressWarnings("unchecked,serial")
-public abstract class AbstractWrapper<T, R, This extends AbstractWrapper<T, R, This>> extends Wrapper<T>
-    implements Compare<This, R>, Nested<This>, Join<This>, Func<This, R>, Serializable {
+@SuppressWarnings({"serial", "unchecked"})
+public abstract class AbstractWrapper<T, R, Children extends AbstractWrapper<T, R, Children>> extends Wrapper<T>
+    implements Compare<Children, R>, Nested<Children, Children>, Join<Children>, Func<Children, R> {
 
-    /**
-     * 前缀
-     */
-    private static final String MP_GENERAL_PARAMNAME = "MPGENVAL";
-    private static final String DEFAULT_PARAM_ALIAS = "ew";
     /**
      * 占位符
      */
-    private static final String PLACE_HOLDER = "{%s}";
-    private static final String MYBATIS_PLUS_TOKEN = "#{%s.paramNameValuePairs.%s}";
-    protected final This typedThis = (This) this;
+    protected final Children typedThis = (Children) this;
     /**
      * 必要度量
      */
     protected AtomicInteger paramNameSeq;
     protected Map<String, Object> paramNameValuePairs;
-    protected String paramAlias = null;
-    protected String lastSql = "";
+    protected SharedString lastSql;
     /**
+     * SQL注释
+     */
+    protected SharedString sqlComment;
+    /**
+     * SQL起始语句
+     */
+    protected SharedString sqlFirst;
+    /**
+     * ß
      * 数据库表映射实体类
      */
-    protected T entity;
+    private T entity;
     protected MergeSegments expression;
+    /**
+     * 实体类型(主要用于确定泛型以及取TableInfo缓存)
+     */
+    private Class<T> entityClass;
 
     @Override
     public T getEntity() {
         return entity;
     }
 
-    public This setEntity(T entity) {
+    public Children setEntity(T entity) {
         this.entity = entity;
         return typedThis;
     }
 
+    protected Class<T> getEntityClass() {
+        if (entityClass == null && entity != null) {
+            entityClass = (Class<T>) entity.getClass();
+        }
+        return entityClass;
+    }
+
+    public Children setEntityClass(Class<T> entityClass) {
+        if (entityClass != null) {
+            this.entityClass = entityClass;
+        }
+        return typedThis;
+    }
+
     @Override
-    public This allEq(boolean condition, Map<R, Object> params, boolean null2IsNull) {
+    public <V> Children allEq(boolean condition, Map<R, V> params, boolean null2IsNull) {
         if (condition && CollectionUtils.isNotEmpty(params)) {
             params.forEach((k, v) -> {
                 if (StringUtils.checkValNotNull(v)) {
@@ -121,7 +118,7 @@ public abstract class AbstractWrapper<T, R, This extends AbstractWrapper<T, R, T
     }
 
     @Override
-    public <V> This allEq(boolean condition, BiPredicate<R, V> filter, Map<R, V> params, boolean null2IsNull) {
+    public <V> Children allEq(boolean condition, BiPredicate<R, V> filter, Map<R, V> params, boolean null2IsNull) {
         if (condition && CollectionUtils.isNotEmpty(params)) {
             params.forEach((k, v) -> {
                 if (filter.test(k, v)) {
@@ -139,223 +136,256 @@ public abstract class AbstractWrapper<T, R, This extends AbstractWrapper<T, R, T
     }
 
     @Override
-    public This eq(boolean condition, R column, Object val) {
+    public Children eq(boolean condition, R column, Object val) {
         return addCondition(condition, column, EQ, val);
     }
 
     @Override
-    public This ne(boolean condition, R column, Object val) {
+    public Children ne(boolean condition, R column, Object val) {
         return addCondition(condition, column, NE, val);
     }
 
     @Override
-    public This gt(boolean condition, R column, Object val) {
+    public Children gt(boolean condition, R column, Object val) {
         return addCondition(condition, column, GT, val);
     }
 
     @Override
-    public This ge(boolean condition, R column, Object val) {
+    public Children ge(boolean condition, R column, Object val) {
         return addCondition(condition, column, GE, val);
     }
 
     @Override
-    public This lt(boolean condition, R column, Object val) {
+    public Children lt(boolean condition, R column, Object val) {
         return addCondition(condition, column, LT, val);
     }
 
     @Override
-    public This le(boolean condition, R column, Object val) {
+    public Children le(boolean condition, R column, Object val) {
         return addCondition(condition, column, LE, val);
     }
 
     @Override
-    public This like(boolean condition, R column, Object val) {
-        return doIt(condition, () -> columnToString(column), LIKE, () -> formatSql("{0}", "%" + val + "%"));
+    public Children like(boolean condition, R column, Object val) {
+        return likeValue(condition, LIKE, column, val, SqlLike.DEFAULT);
     }
 
     @Override
-    public This notLike(boolean condition, R column, Object val) {
-        return not(condition).like(condition, column, val);
+    public Children notLike(boolean condition, R column, Object val) {
+        return likeValue(condition, NOT_LIKE, column, val, SqlLike.DEFAULT);
     }
 
     @Override
-    public This likeLeft(boolean condition, R column, Object val) {
-        return doIt(condition, () -> columnToString(column), LIKE, () -> formatSql("{0}", "%" + val));
+    public Children likeLeft(boolean condition, R column, Object val) {
+        return likeValue(condition, LIKE, column, val, SqlLike.LEFT);
     }
 
     @Override
-    public This likeRight(boolean condition, R column, Object val) {
-        return doIt(condition, () -> columnToString(column), LIKE, () -> formatSql("{0}", val + "%"));
+    public Children likeRight(boolean condition, R column, Object val) {
+        return likeValue(condition, LIKE, column, val, SqlLike.RIGHT);
     }
 
     @Override
-    public This between(boolean condition, R column, Object val1, Object val2) {
+    public Children between(boolean condition, R column, Object val1, Object val2) {
         return doIt(condition, () -> columnToString(column), BETWEEN, () -> formatSql("{0}", val1), AND,
             () -> formatSql("{0}", val2));
     }
 
     @Override
-    public This notBetween(boolean condition, R column, Object val1, Object val2) {
-        return not(condition).between(condition, column, val1, val2);
+    public Children notBetween(boolean condition, R column, Object val1, Object val2) {
+        return doIt(condition, () -> columnToString(column), NOT_BETWEEN, () -> formatSql("{0}", val1), AND,
+            () -> formatSql("{0}", val2));
     }
 
     @Override
-    public This and(boolean condition, Function<This, This> func) {
-        return and(condition).addNestedCondition(condition, func);
+    public Children and(boolean condition, Consumer<Children> consumer) {
+        return and(condition).addNestedCondition(condition, consumer);
     }
 
     @Override
-    public This or(boolean condition, Function<This, This> func) {
-        return or(condition).addNestedCondition(condition, func);
+    public Children or(boolean condition, Consumer<Children> consumer) {
+        return or(condition).addNestedCondition(condition, consumer);
     }
 
     @Override
-    public This nested(boolean condition, Function<This, This> func) {
-        return addNestedCondition(condition, func);
+    public Children nested(boolean condition, Consumer<Children> consumer) {
+        return addNestedCondition(condition, consumer);
     }
 
     @Override
-    public This or(boolean condition) {
+    public Children not(boolean condition, Consumer<Children> consumer) {
+        return not(condition).addNestedCondition(condition, consumer);
+    }
+
+    @Override
+    public Children or(boolean condition) {
         return doIt(condition, OR);
     }
 
     @Override
-    public This apply(boolean condition, String applySql, Object... value) {
+    public Children apply(boolean condition, String applySql, Object... value) {
         return doIt(condition, APPLY, () -> formatSql(applySql, value));
     }
 
     @Override
-    public This last(boolean condition, String lastSql) {
-        this.lastSql = " " + lastSql;
+    public Children last(boolean condition, String lastSql) {
+        if (condition) {
+            this.lastSql.setStringValue(StringPool.SPACE + lastSql);
+        }
         return typedThis;
     }
 
     @Override
-    public This exists(boolean condition, String existsSql) {
+    public Children comment(boolean condition, String comment) {
+        if (condition) {
+            this.sqlComment.setStringValue(comment);
+        }
+        return typedThis;
+    }
+
+    @Override
+    public Children first(boolean condition, String firstSql) {
+        if (condition) {
+            this.sqlFirst.setStringValue(firstSql);
+        }
+        return typedThis;
+    }
+
+    @Override
+    public Children exists(boolean condition, String existsSql) {
         return doIt(condition, EXISTS, () -> String.format("(%s)", existsSql));
     }
 
     @Override
-    public This notExists(boolean condition, String notExistsSql) {
-        return not(condition).exists(condition, notExistsSql);
+    public Children notExists(boolean condition, String existsSql) {
+        return not(condition).exists(condition, existsSql);
     }
 
     @Override
-    public This isNull(boolean condition, R column) {
+    public Children isNull(boolean condition, R column) {
         return doIt(condition, () -> columnToString(column), IS_NULL);
     }
 
     @Override
-    public This isNotNull(boolean condition, R column) {
+    public Children isNotNull(boolean condition, R column) {
         return doIt(condition, () -> columnToString(column), IS_NOT_NULL);
     }
 
     @Override
-    public This in(boolean condition, R column, Collection<?> value) {
-        if (CollectionUtils.isEmpty(value)) {
-            return typedThis;
-        }
-        return doIt(condition, () -> columnToString(column), IN, inExpression(value));
+    public Children in(boolean condition, R column, Collection<?> coll) {
+        return doIt(condition, () -> columnToString(column), IN, inExpression(coll));
     }
 
     @Override
-    public This notIn(boolean condition, R column, Collection<?> value) {
-        if (CollectionUtils.isEmpty(value)) {
-            return typedThis;
-        }
-        return not(condition).in(condition, column, value);
+    public Children notIn(boolean condition, R column, Collection<?> coll) {
+        return doIt(condition, () -> columnToString(column), NOT_IN, inExpression(coll));
     }
 
     @Override
-    public This inSql(boolean condition, R column, String inValue) {
+    public Children inSql(boolean condition, R column, String inValue) {
         return doIt(condition, () -> columnToString(column), IN, () -> String.format("(%s)", inValue));
     }
 
     @Override
-    public This notInSql(boolean condition, R column, String inValue) {
-        return not(condition).inSql(condition, column, inValue);
+    public Children notInSql(boolean condition, R column, String inValue) {
+        return doIt(condition, () -> columnToString(column), NOT_IN, () -> String.format("(%s)", inValue));
     }
 
     @Override
-    public This groupBy(boolean condition, R... columns) {
+    public Children groupBy(boolean condition, R... columns) {
         if (ArrayUtils.isEmpty(columns)) {
             return typedThis;
         }
-        return doIt(condition, GROUP_BY, () -> columnsToString(columns));
+        return doIt(condition, GROUP_BY,
+            () -> columns.length == 1 ? columnToString(columns[0]) : columnsToString(columns));
     }
 
     @Override
-    public This orderBy(boolean condition, boolean isAsc, R... columns) {
+    public Children orderBy(boolean condition, boolean isAsc, R... columns) {
         if (ArrayUtils.isEmpty(columns)) {
             return typedThis;
         }
-        return doIt(condition, ORDER_BY, () -> columnsToString(columns), isAsc ? ASC : DESC);
+        SqlKeyword mode = isAsc ? ASC : DESC;
+        for (R column : columns) {
+            doIt(condition, ORDER_BY, () -> columnToString(column), mode);
+        }
+        return typedThis;
     }
 
     @Override
-    public This having(boolean condition, String sqlHaving, Object... params) {
+    public Children having(boolean condition, String sqlHaving, Object... params) {
         return doIt(condition, HAVING, () -> formatSqlIfNeed(condition, sqlHaving, params));
     }
 
+    @Override
+    public Children func(boolean condition, Consumer<Children> consumer) {
+        if (condition) {
+            consumer.accept(typedThis);
+        }
+        return typedThis;
+    }
+
     /**
-     * <p>
      * 内部自用
-     * </p>
-     * NOT 关键词
+     * <p>NOT 关键词</p>
      */
-    protected This not(boolean condition) {
+    protected Children not(boolean condition) {
         return doIt(condition, NOT);
     }
 
     /**
-     * <p>
      * 内部自用
-     * </p>
-     * 拼接 AND
+     * <p>拼接 AND</p>
      */
-    protected This and(boolean condition) {
+    protected Children and(boolean condition) {
         return doIt(condition, AND);
     }
 
     /**
-     * <p>
+     * 内部自用
+     * <p>拼接 LIKE 以及 值</p>
+     */
+    protected Children likeValue(boolean condition, SqlKeyword keyword, R column, Object val, SqlLike sqlLike) {
+        return doIt(condition, () -> columnToString(column), keyword, () -> formatSql("{0}", SqlUtils.concatLike(val, sqlLike)));
+    }
+
+    /**
      * 普通查询条件
-     * </p>
      *
      * @param condition  是否执行
      * @param column     属性
      * @param sqlKeyword SQL 关键词
      * @param val        条件值
      */
-    protected This addCondition(boolean condition, R column, SqlKeyword sqlKeyword, Object val) {
+    protected Children addCondition(boolean condition, R column, SqlKeyword sqlKeyword, Object val) {
         return doIt(condition, () -> columnToString(column), sqlKeyword, () -> formatSql("{0}", val));
     }
 
     /**
-     * <p>
      * 多重嵌套查询条件
-     * </p>
      *
      * @param condition 查询条件值
      */
-    protected This addNestedCondition(boolean condition, Function<This, This> func) {
-        return doIt(condition, () -> "(",
-            func.apply(instance(paramNameSeq, paramNameValuePairs)), () -> ")");
+    protected Children addNestedCondition(boolean condition, Consumer<Children> consumer) {
+        if (condition) {
+            final Children instance = instance();
+            consumer.accept(instance);
+            return doIt(true, APPLY, instance);
+        }
+        return typedThis;
     }
 
     /**
      * 子类返回一个自己的新对象
      */
-    protected abstract This instance(AtomicInteger paramNameSeq, Map<String, Object> paramNameValuePairs);
+    protected abstract Children instance();
 
     /**
-     * <p>
      * 格式化SQL
-     * </p>
      *
      * @param sqlStr SQL语句部分
      * @param params 参数集
-     * @return this
+     * @return sql
      */
     protected final String formatSql(String sqlStr, Object... params) {
         return formatSqlIfNeed(true, sqlStr, params);
@@ -363,31 +393,31 @@ public abstract class AbstractWrapper<T, R, This extends AbstractWrapper<T, R, T
 
     /**
      * <p>
-     * 根据需要格式化SQL<BR>
-     * <BR>
+     * 根据需要格式化SQL<br>
+     * <br>
      * Format SQL for methods: EntityQ<T>.where/and/or...("name={0}", value);
-     * ALL the {<b>i</b>} will be replaced with #{MPGENVAL<b>i</b>}<BR>
-     * <BR>
+     * ALL the {<b>i</b>} will be replaced with #{MPGENVAL<b>i</b>}<br>
+     * <br>
      * ew.where("sample_name=<b>{0}</b>", "haha").and("sample_age &gt;<b>{0}</b>
      * and sample_age&lt;<b>{1}</b>", 18, 30) <b>TO</b>
      * sample_name=<b>#{MPGENVAL1}</b> and sample_age&gt;#<b>{MPGENVAL2}</b> and
-     * sample_age&lt;<b>#{MPGENVAL3}</b><BR>
+     * sample_age&lt;<b>#{MPGENVAL3}</b><br>
      * </p>
      *
      * @param need   是否需要格式化
      * @param sqlStr SQL语句部分
      * @param params 参数集
-     * @return this
+     * @return sql
      */
     protected final String formatSqlIfNeed(boolean need, String sqlStr, Object... params) {
-        if (!need || StringUtils.isEmpty(sqlStr)) {
+        if (!need || StringUtils.isBlank(sqlStr)) {
             return null;
         }
         if (ArrayUtils.isNotEmpty(params)) {
             for (int i = 0; i < params.length; ++i) {
-                String genParamName = MP_GENERAL_PARAMNAME + paramNameSeq.incrementAndGet();
-                sqlStr = sqlStr.replace(String.format(PLACE_HOLDER, i),
-                    String.format(MYBATIS_PLUS_TOKEN, getParamAlias(), genParamName));
+                String genParamName = Constants.WRAPPER_PARAM + paramNameSeq.incrementAndGet();
+                sqlStr = sqlStr.replace(String.format("{%s}", i),
+                    String.format(Constants.WRAPPER_PARAM_FORMAT, Constants.WRAPPER, genParamName));
                 paramNameValuePairs.put(genParamName, params[i]);
             }
         }
@@ -395,48 +425,76 @@ public abstract class AbstractWrapper<T, R, This extends AbstractWrapper<T, R, T
     }
 
     /**
-     * <p>
      * 获取in表达式 包含括号
-     * </p>
      *
      * @param value 集合
      */
     private ISqlSegment inExpression(Collection<?> value) {
         return () -> value.stream().map(i -> formatSql("{0}", i))
-            .collect(joining(",", "(", ")"));
+            .collect(joining(StringPool.COMMA, StringPool.LEFT_BRACKET, StringPool.RIGHT_BRACKET));
     }
 
     /**
      * 必要的初始化
      */
-    protected final void initNeed() {
+    protected void initNeed() {
         paramNameSeq = new AtomicInteger(0);
         paramNameValuePairs = new HashMap<>(16);
         expression = new MergeSegments();
+        lastSql = SharedString.emptyString();
+        sqlComment = SharedString.emptyString();
+        sqlFirst = SharedString.emptyString();
+    }
+
+    @Override
+    public void clear() {
+        entity = null;
+        paramNameSeq.set(0);
+        paramNameValuePairs.clear();
+        expression.clear();
+        lastSql.toEmpty();
+        sqlComment.toEmpty();
+        sqlFirst.toEmpty();
     }
 
     /**
-     * <p>
      * 对sql片段进行组装
-     * </p>
      *
      * @param condition   是否执行
      * @param sqlSegments sql片段数组
+     * @return children
      */
-    protected This doIt(boolean condition, ISqlSegment... sqlSegments) {
+    protected Children doIt(boolean condition, ISqlSegment... sqlSegments) {
         if (condition) {
             expression.add(sqlSegments);
         }
         return typedThis;
     }
 
-    public String getParamAlias() {
-        return StringUtils.isEmpty(paramAlias) ? DEFAULT_PARAM_ALIAS : paramAlias;
+    @Override
+    public String getSqlSegment() {
+        return expression.getSqlSegment() + lastSql.getStringValue();
     }
 
     @Override
-    public String getSqlSegment() {
-        return expression.getSqlSegment() + lastSql;
+    public String getSqlComment() {
+        if (StringUtils.isNotBlank(sqlComment.getStringValue())) {
+            return "/*" + StringEscape.escapeRawString(sqlComment.getStringValue()) + "*/";
+        }
+        return null;
+    }
+
+    @Override
+    public String getSqlFirst() {
+        if (StringUtils.isNotBlank(sqlFirst.getStringValue())) {
+            return StringEscape.escapeRawString(sqlFirst.getStringValue());
+        }
+        return null;
+    }
+
+    @Override
+    public MergeSegments getExpression() {
+        return expression;
     }
 
     public Map<String, Object> getParamNameValuePairs() {
@@ -444,18 +502,24 @@ public abstract class AbstractWrapper<T, R, This extends AbstractWrapper<T, R, T
     }
 
     /**
-     * <p>
+     * 获取 columnName
+     */
+    protected String columnToString(R column) {
+        return (String) column;
+    }
+
+    /**
      * 多字段转换为逗号 "," 分割字符串
-     * </p>
      *
      * @param columns 多字段
      */
     protected String columnsToString(R... columns) {
-        return Arrays.stream(columns).map(this::columnToString).collect(joining(","));
+        return Arrays.stream(columns).map(this::columnToString).collect(joining(StringPool.COMMA));
     }
 
-    /**
-     * 获取 columnName
-     */
-    protected abstract String columnToString(R column);
+    @Override
+    @SuppressWarnings("all")
+    public Children clone() {
+        return SerializationUtils.clone(typedThis);
+    }
 }

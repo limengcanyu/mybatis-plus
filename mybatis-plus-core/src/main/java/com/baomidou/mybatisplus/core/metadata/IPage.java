@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,14 +15,18 @@
  */
 package com.baomidou.mybatisplus.core.metadata;
 
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
+import com.baomidou.mybatisplus.core.toolkit.StringPool;
+
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+
+import static java.util.stream.Collectors.toList;
 
 /**
- * <p>
  * 分页 Page 对象接口
- * </p>
  *
  * @author hubin
  * @since 2018-06-09
@@ -30,42 +34,25 @@ import java.util.Map;
 public interface IPage<T> extends Serializable {
 
     /**
-     * <p>
-     * 降序字段数组
-     * </p>
+     * 获取排序信息，排序的字段和正反序
      *
-     * @return order by desc 的字段数组
+     * @return 排序信息
      */
-    default String[] descs() {
-        return null;
-    }
+    List<OrderItem> orders();
 
     /**
-     * <p>
-     * 升序字段数组
-     * </p>
-     *
-     * @return order by asc 的字段数组
-     */
-    default String[] ascs() {
-        return null;
-    }
-
-    /**
-     * <p>
      * KEY/VALUE 条件
-     * </p>
      *
-     * @return
+     * @return ignore
+     * @deprecated 3.3.3 @2020-06-30
      */
+    @Deprecated
     default Map<Object, Object> condition() {
         return null;
     }
 
     /**
-     * <p>
      * 自动优化 COUNT SQL【 默认：true 】
-     * </p>
      *
      * @return true 是 / false 否
      */
@@ -74,18 +61,23 @@ public interface IPage<T> extends Serializable {
     }
 
     /**
-     * <p>
+     * 进行 count 查询 【 默认: true 】
+     *
+     * @return true 是 / false 否
+     */
+    default boolean isSearchCount() {
+        return true;
+    }
+
+    /**
      * 计算当前分页偏移量
-     * </p>
      */
     default long offset() {
         return getCurrent() > 0 ? (getCurrent() - 1) * getSize() : 0;
     }
 
     /**
-     * <p>
      * 当前分页总页数
-     * </p>
      */
     default long getPages() {
         if (getSize() == 0) {
@@ -99,72 +91,127 @@ public interface IPage<T> extends Serializable {
     }
 
     /**
-     * <p>
+     * 内部什么也不干
+     * <p>只是为了 json 反序列化时不报错</p>
+     */
+    default IPage<T> setPages(long pages) {
+        // to do nothing
+        return this;
+    }
+
+    /**
+     * 设置是否命中count缓存
+     *
+     * @param hit 是否命中
+     * @since 3.3.1
+     * @deprecated 3.3.3 @2020-06-30 缓存遵循mybatis的一或二缓
+     */
+    @Deprecated
+    default void hitCount(boolean hit) {
+
+    }
+
+    /**
+     * 是否命中count缓存
+     *
+     * @return 是否命中count缓存
+     * @since 3.3.1
+     * @deprecated 3.3.3 @2020-06-30 缓存遵循mybatis的一或二缓
+     */
+    @Deprecated
+    default boolean isHitCount() {
+        return false;
+    }
+
+    /**
      * 分页记录列表
-     * </p>
      *
      * @return 分页对象记录列表
      */
     List<T> getRecords();
 
     /**
-     * <p>
      * 设置分页记录列表
-     * </p>
      */
     IPage<T> setRecords(List<T> records);
 
     /**
-     * <p>
      * 当前满足条件总行数
-     * </p>
-     * <p>
-     * 当 total 为 null 或者大于 0 分页插件不在查询总数
-     * </p>
      *
      * @return 总条数
      */
     long getTotal();
 
     /**
-     * <p>
      * 设置当前满足条件总行数
-     * </p>
-     * <p>
-     * 当 total 为 null 或者大于 0 分页插件不在查询总数
-     * </p>
      */
     IPage<T> setTotal(long total);
 
     /**
-     * <p>
-     * 当前分页总页数
-     * </p>
+     * 获取每页显示条数
      *
-     * @return 总页数
+     * @return 每页显示条数
      */
     long getSize();
 
     /**
-     * <p>
-     * 设置当前分页总页数
-     * </p>
+     * 设置每页显示条数
      */
     IPage<T> setSize(long size);
 
     /**
-     * <p>
-     * 当前页，默认 1
-     * </p>
+     * 当前页
      *
-     * @return 当然页
+     * @return 当前页
      */
     long getCurrent();
 
     /**
-     * <p>
      * 设置当前页
-     * </p>
      */
     IPage<T> setCurrent(long current);
+
+    /**
+     * IPage 的泛型转换
+     *
+     * @param mapper 转换函数
+     * @param <R>    转换后的泛型
+     * @return 转换泛型后的 IPage
+     */
+    @SuppressWarnings("unchecked")
+    default <R> IPage<R> convert(Function<? super T, ? extends R> mapper) {
+        List<R> collect = this.getRecords().stream().map(mapper).collect(toList());
+        return ((IPage<R>) this).setRecords(collect);
+    }
+
+    /**
+     * 老分页插件不支持
+     *
+     * @return count的method
+     * @since 3.3.3 @2020-06-19
+     */
+    default String countId() {
+        return null;
+    }
+
+    /**
+     * 生成缓存key值
+     *
+     * @return 缓存key值
+     * @since 3.3.2
+     * @deprecated 3.3.3 @2020-06-30
+     */
+    @Deprecated
+    default String cacheKey() {
+        StringBuilder key = new StringBuilder();
+        key.append(offset()).append(StringPool.COLON).append(getSize());
+        List<OrderItem> orders = orders();
+        if (CollectionUtils.isNotEmpty(orders)) {
+            for (OrderItem item : orders) {
+                key.append(StringPool.COLON).append(item.getColumn()).append(StringPool.COLON).append(item.isAsc());
+            }
+        }
+        return key.toString();
+    }
+
 }

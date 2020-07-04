@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2016, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -17,43 +17,37 @@ package com.baomidou.mybatisplus.generator.config.converts;
 
 import com.baomidou.mybatisplus.generator.config.GlobalConfig;
 import com.baomidou.mybatisplus.generator.config.ITypeConvert;
-import com.baomidou.mybatisplus.generator.config.rules.DbColumnType;
+import com.baomidou.mybatisplus.generator.config.rules.IColumnType;
+
+import static com.baomidou.mybatisplus.generator.config.converts.TypeConverts.contains;
+import static com.baomidou.mybatisplus.generator.config.converts.TypeConverts.containsAny;
+import static com.baomidou.mybatisplus.generator.config.rules.DbColumnType.*;
 
 /**
- * <p>
  * SQLServer 字段类型转换
- * </p>
  *
- * @author hubin
+ * @author hubin, hanchunlin
  * @since 2017-01-20
  */
 public class SqlServerTypeConvert implements ITypeConvert {
+    public static final SqlServerTypeConvert INSTANCE = new SqlServerTypeConvert();
 
+    /**
+     * @inheritDoc
+     */
     @Override
-    public DbColumnType processTypeConvert(GlobalConfig globalConfig, String fieldType) {
-        String t = fieldType.toLowerCase();
-        if (t.contains("char") || t.contains("text") || t.contains("xml")) {
-            return DbColumnType.STRING;
-        } else if (t.contains("bigint")) {
-            return DbColumnType.LONG;
-        } else if (t.contains("int")) {
-            return DbColumnType.INTEGER;
-        } else if (t.contains("date") || t.contains("time")) {
-            return DbColumnType.DATE;
-        } else if (t.contains("text")) {
-            return DbColumnType.STRING;
-        } else if (t.contains("bit")) {
-            return DbColumnType.BOOLEAN;
-        } else if (t.contains("decimal") || t.contains("numeric")) {
-            return DbColumnType.DOUBLE;
-        } else if (t.contains("money")) {
-            return DbColumnType.BIG_DECIMAL;
-        } else if (t.contains("binary") || t.contains("image")) {
-            return DbColumnType.BYTE_ARRAY;
-        } else if (t.contains("float") || t.contains("real")) {
-            return DbColumnType.FLOAT;
-        }
-        return DbColumnType.STRING;
+    public IColumnType processTypeConvert(GlobalConfig globalConfig, String fieldType) {
+        return TypeConverts.use(fieldType)
+            .test(containsAny("char", "xml", "text").then(STRING))
+            .test(contains("bigint").then(LONG))
+            .test(contains("int").then(INTEGER))
+            .test(containsAny("date", "time").then(STRING))
+            .test(contains("bit").then(BOOLEAN))
+            .test(containsAny("decimal", "numeric").then(DOUBLE))
+            .test(contains("money").then(BIG_DECIMAL))
+            .test(containsAny("binary", "image").then(BYTE_ARRAY))
+            .test(containsAny("float", "real").then(FLOAT))
+            .or(STRING);
     }
 
 }

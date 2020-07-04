@@ -3,7 +3,10 @@ package ${package.Entity}
 <#list table.importPackages as pkg>
 import ${pkg}
 </#list>
-
+<#if swagger2>
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+</#if>
 /**
  * <p>
  * ${table.comment}
@@ -14,6 +17,9 @@ import ${pkg}
  */
 <#if table.convert>
 @TableName("${table.name}")
+</#if>
+<#if swagger2>
+@ApiModel(value="${entity}对象", description="${table.comment!}")
 </#if>
 <#if superEntityClass??>
 class ${entity} : ${superEntityClass}<#if activeRecord><${entity}></#if> {
@@ -30,29 +36,33 @@ class ${entity} : Serializable {
 </#if>
 
 <#if field.comment!?length gt 0>
+<#if swagger2>
+        @ApiModelProperty(value = "${field.comment}")
+<#else>
     /**
      * ${field.comment}
      */
 </#if>
+</#if>
 <#if field.keyFlag>
 <#-- 主键 -->
 <#if field.keyIdentityFlag>
-    @TableId(value = "${field.name}", type = IdType.AUTO)
+    @TableId(value = "${field.annotationColumnName}", type = IdType.AUTO)
 <#elseif idType ??>
-    @TableId(value = "${field.name}", type = IdType.${idType})
+    @TableId(value = "${field.annotationColumnName}", type = IdType.${idType})
 <#elseif field.convert>
-    @TableId("${field.name}")
+    @TableId("${field.annotationColumnName}")
 </#if>
 <#-- 普通字段 -->
 <#elseif field.fill??>
 <#-- -----   存在字段填充设置   ----->
 <#if field.convert>
-    @TableField(value = "${field.name}", fill = FieldFill.${field.fill})
+    @TableField(value = "${field.annotationColumnName}", fill = FieldFill.${field.fill})
 <#else>
     @TableField(fill = FieldFill.${field.fill})
 </#if>
 <#elseif field.convert>
-    @TableField("${field.name}")
+    @TableField("${field.annotationColumnName}")
 </#if>
 <#-- 乐观锁注解 -->
 <#if (versionFieldName!"") == field.name>
@@ -75,14 +85,14 @@ class ${entity} : Serializable {
     companion object {
 <#list table.fields as field>
 
-        const val ${field.name.toUpperCase()} : String = "${field.name}"
+        const val ${field.name?upper_case} : String = "${field.name}"
 
 </#list>
     }
 
 </#if>
 <#if activeRecord>
-    override fun pkVal(): Serializable {
+    override fun pkVal(): Serializable? {
 <#if keyPropertyName??>
         return ${keyPropertyName}
 <#else>
