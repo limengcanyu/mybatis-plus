@@ -16,12 +16,10 @@
 package com.baomidou.mybatisplus.extension.plugins.inner;
 
 import com.baomidou.mybatisplus.core.parser.SqlParserHelper;
-import com.baomidou.mybatisplus.core.toolkit.ClassUtils;
-import com.baomidou.mybatisplus.core.toolkit.ExceptionUtils;
-import com.baomidou.mybatisplus.core.toolkit.PluginUtils;
-import com.baomidou.mybatisplus.core.toolkit.StringPool;
+import com.baomidou.mybatisplus.core.plugins.InterceptorIgnoreHelper;
+import com.baomidou.mybatisplus.core.toolkit.*;
 import com.baomidou.mybatisplus.extension.parser.JsqlParserSupport;
-import com.baomidou.mybatisplus.extension.plugins.tenant.TenantLineHandler;
+import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
 import com.baomidou.mybatisplus.extension.toolkit.PropertyMapper;
 import lombok.*;
 import net.sf.jsqlparser.expression.BinaryExpression;
@@ -51,7 +49,7 @@ import java.util.Properties;
 
 /**
  * @author hubin
- * @since 2020-06-20
+ * @since 3.4.0
  */
 @Data
 @NoArgsConstructor
@@ -65,9 +63,8 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
 
     @Override
     public void beforeQuery(Executor executor, MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql) throws SQLException {
-        if (SqlParserHelper.getSqlParserInfo(ms)) {
-            return;
-        }
+        if (InterceptorIgnoreHelper.willIgnoreTenantLine(ms.getId())) return;
+        if (SqlParserHelper.getSqlParserInfo(ms)) return;
         PluginUtils.MPBoundSql mpBs = PluginUtils.mpBoundSql(boundSql);
         mpBs.sql(parserSingle(mpBs.sql(), null));
     }
@@ -76,19 +73,22 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
     public void beforePrepare(StatementHandler sh, Connection connection, Integer transactionTimeout) {
         PluginUtils.MPStatementHandler mpSh = PluginUtils.mpStatementHandler(sh);
         MappedStatement ms = mpSh.mappedStatement();
-        if (SqlParserHelper.getSqlParserInfo(ms)) {
-            return;
-        }
         SqlCommandType sct = ms.getSqlCommandType();
         if (sct == SqlCommandType.INSERT || sct == SqlCommandType.UPDATE || sct == SqlCommandType.DELETE) {
+            if (InterceptorIgnoreHelper.willIgnoreTenantLine(ms.getId())) return;
+            if (SqlParserHelper.getSqlParserInfo(ms)) return;
             PluginUtils.MPBoundSql mpBs = mpSh.mPBoundSql();
             mpBs.sql(parserMulti(mpBs.sql(), null));
         }
     }
 
     @Override
-    protected void processSelect(Select select, int index, Object obj) {
+    protected void processSelect(Select select, int index, String sql, Object obj) {
         processSelectBody(select.getSelectBody());
+        List<WithItem> withItemsList = select.getWithItemsList();
+        if (!CollectionUtils.isEmpty(withItemsList)) {
+            withItemsList.forEach(this::processSelectBody);
+        }
     }
 
     protected void processSelectBody(SelectBody selectBody) {
@@ -108,26 +108,32 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
     }
 
     @Override
-    protected void processInsert(Insert insert, int index, Object obj) {
-        if (tenantLineHandler.doTableFilter(insert.getTable().getName())) {
+    protected void processInsert(Insert insert, int index, String sql, Object obj) {
+        if (tenantLineHandler.ignoreTable(insert.getTable().getName())) {
             // 过滤退出执行
             return;
         }
         List<Column> columns = insert.getColumns();
+        if (CollectionUtils.isEmpty(columns)) {
+            // 针对不给列名的insert 不处理
+            return;
+        }
         String tenantIdColumn = tenantLineHandler.getTenantIdColumn();
         if (columns.stream().map(Column::getColumnName).anyMatch(i -> i.equals(tenantIdColumn))) {
+            // 针对已给出租户列的insert 不处理
             return;
         }
         columns.add(new Column(tenantLineHandler.getTenantIdColumn()));
-        if (insert.getSelect() != null) {
-            processPlainSelect((PlainSelect) insert.getSelect().getSelectBody(), true);
+        Select select = insert.getSelect();
+        if (select != null) {
+            this.processInsertSelect(select.getSelectBody());
         } else if (insert.getItemsList() != null) {
             // fixed github pull/295
             ItemsList itemsList = insert.getItemsList();
             if (itemsList instanceof MultiExpressionList) {
                 ((MultiExpressionList) itemsList).getExprList().forEach(el -> el.getExpressions().add(tenantLineHandler.getTenantId()));
             } else {
-                ((ExpressionList) insert.getItemsList()).getExpressions().add(tenantLineHandler.getTenantId());
+                ((ExpressionList) itemsList).getExpressions().add(tenantLineHandler.getTenantId());
             }
         } else {
             throw ExceptionUtils.mpe("Failed to process multiple-table update, please exclude the tableName or statementId");
@@ -138,9 +144,9 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
      * update 语句处理
      */
     @Override
-    protected void processUpdate(Update update, int index, Object obj) {
+    protected void processUpdate(Update update, int index, String sql, Object obj) {
         final Table table = update.getTable();
-        if (tenantLineHandler.doTableFilter(table.getName())) {
+        if (tenantLineHandler.ignoreTable(table.getName())) {
             // 过滤退出执行
             return;
         }
@@ -151,8 +157,8 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
      * delete 语句处理
      */
     @Override
-    protected void processDelete(Delete delete, int index, Object obj) {
-        if (tenantLineHandler.doTableFilter(delete.getTable().getName())) {
+    protected void processDelete(Delete delete, int index, String sql, Object obj) {
+        if (tenantLineHandler.ignoreTable(delete.getTable().getName())) {
             // 过滤退出执行
             return;
         }
@@ -177,29 +183,52 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
         return equalsTo;
     }
 
+
     /**
-     * 处理 PlainSelect
+     * 处理 insert into select
+     * <p>
+     * 进入这里表示需要 insert 的表启用了多租户,则 select 的表都启动了
+     *
+     * @param selectBody SelectBody
      */
-    protected void processPlainSelect(PlainSelect plainSelect) {
-        processPlainSelect(plainSelect, false);
+    protected void processInsertSelect(SelectBody selectBody) {
+        PlainSelect plainSelect = (PlainSelect) selectBody;
+        FromItem fromItem = plainSelect.getFromItem();
+        if (fromItem instanceof Table) {
+            Table fromTable = (Table) fromItem;
+            plainSelect.setWhere(builderExpression(plainSelect.getWhere(), fromTable));
+            appendSelectItem(plainSelect.getSelectItems());
+        } else if (fromItem instanceof SubSelect) {
+            SubSelect subSelect = (SubSelect) fromItem;
+            appendSelectItem(plainSelect.getSelectItems());
+            processInsertSelect(subSelect.getSelectBody());
+        }
+    }
+
+    /**
+     * 追加 SelectItem
+     *
+     * @param selectItems SelectItem
+     */
+    protected void appendSelectItem(List<SelectItem> selectItems) {
+        if (CollectionUtils.isEmpty(selectItems)) return;
+        if (selectItems.size() == 1) {
+            SelectItem item = selectItems.get(0);
+            if (item instanceof AllColumns || item instanceof AllTableColumns) return;
+        }
+        selectItems.add(new SelectExpressionItem(new Column(tenantLineHandler.getTenantIdColumn())));
     }
 
     /**
      * 处理 PlainSelect
-     *
-     * @param plainSelect ignore
-     * @param addColumn   是否添加租户列,insert into select语句中需要
      */
-    protected void processPlainSelect(PlainSelect plainSelect, boolean addColumn) {
+    protected void processPlainSelect(PlainSelect plainSelect) {
         FromItem fromItem = plainSelect.getFromItem();
         if (fromItem instanceof Table) {
             Table fromTable = (Table) fromItem;
-            if (!tenantLineHandler.doTableFilter(fromTable.getName())) {
+            if (!tenantLineHandler.ignoreTable(fromTable.getName())) {
                 //#1186 github
                 plainSelect.setWhere(builderExpression(plainSelect.getWhere(), fromTable));
-                if (addColumn) {
-                    plainSelect.getSelectItems().add(new SelectExpressionItem(new Column(tenantLineHandler.getTenantIdColumn())));
-                }
             }
         } else {
             processFromItem(fromItem);
@@ -249,7 +278,7 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
     protected void processJoin(Join join) {
         if (join.getRightItem() instanceof Table) {
             Table fromTable = (Table) join.getRightItem();
-            if (this.tenantLineHandler.doTableFilter(fromTable.getName())) {
+            if (tenantLineHandler.ignoreTable(fromTable.getName())) {
                 // 过滤退出执行
                 return;
             }
@@ -261,10 +290,11 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
      * 处理条件
      */
     protected Expression builderExpression(Expression currentExpression, Table table) {
-        final Expression tenantExpression = tenantLineHandler.getTenantId();
-        Expression appendExpression = this.processTableAlias4CustomizedTenantIdExpression(tenantExpression, table);
+        EqualsTo equalsTo = new EqualsTo();
+        equalsTo.setLeftExpression(this.getAliasColumn(table));
+        equalsTo.setRightExpression(tenantLineHandler.getTenantId());
         if (currentExpression == null) {
-            return appendExpression;
+            return equalsTo;
         }
         if (currentExpression instanceof BinaryExpression) {
             BinaryExpression binaryExpression = (BinaryExpression) currentExpression;
@@ -278,9 +308,9 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
             }
         }
         if (currentExpression instanceof OrExpression) {
-            return new AndExpression(new Parenthesis(currentExpression), appendExpression);
+            return new AndExpression(new Parenthesis(currentExpression), equalsTo);
         } else {
-            return new AndExpression(currentExpression, appendExpression);
+            return new AndExpression(currentExpression, equalsTo);
         }
     }
 
@@ -294,16 +324,6 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
                 processSelectBody(((SubSelect) rightItems).getSelectBody());
             }
         }
-    }
-
-    /**
-     *
-     */
-    protected Expression processTableAlias4CustomizedTenantIdExpression(Expression expression, Table table) {
-        EqualsTo equalsTo = new EqualsTo();
-        equalsTo.setLeftExpression(this.getAliasColumn(table));
-        equalsTo.setRightExpression(expression);
-        return equalsTo;
     }
 
     /**

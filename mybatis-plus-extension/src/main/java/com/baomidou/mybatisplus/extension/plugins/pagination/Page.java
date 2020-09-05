@@ -20,7 +20,6 @@ import com.baomidou.mybatisplus.core.metadata.OrderItem;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.experimental.Accessors;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,6 +59,8 @@ public class Page<T> implements IPage<T> {
     /**
      * 排序字段信息
      */
+    @Getter
+    @Setter
     protected List<OrderItem> orders = new ArrayList<>();
 
     /**
@@ -79,8 +80,13 @@ public class Page<T> implements IPage<T> {
      */
     @Getter
     @Setter
-    @Accessors(chain = true)
     protected String countId;
+    /**
+     * countId
+     */
+    @Getter
+    @Setter
+    protected Long maxLimit;
 
     public Page() {
     }
@@ -177,6 +183,11 @@ public class Page<T> implements IPage<T> {
     @Override
     public String countId() {
         return getCountId();
+    }
+
+    @Override
+    public Long maxLimit() {
+        return getMaxLimit();
     }
 
     /**
@@ -298,14 +309,6 @@ public class Page<T> implements IPage<T> {
     @Override
     public List<OrderItem> orders() {
         return getOrders();
-    }
-
-    public List<OrderItem> getOrders() {
-        return orders;
-    }
-
-    public void setOrders(List<OrderItem> orders) {
-        this.orders = orders;
     }
 
     @Override

@@ -33,13 +33,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -110,7 +104,7 @@ public class ConfigBuilder {
     /**
      * 过滤正则
      */
-    private static final Pattern REGX = Pattern.compile("[~!/@#$%^&*()-_=+\\\\|[{}];:\\'\\\",<.>/?]+");
+    private static final Pattern REGX = Pattern.compile("[~!/@#$%^&*()-_=+\\\\|[{}];:'\",<.>?]+");
 
     /**
      * 在构造器中处理配置
@@ -477,49 +471,49 @@ public class ConfigBuilder {
             try (PreparedStatement preparedStatement = connection.prepareStatement(sql.toString());
                  ResultSet results = preparedStatement.executeQuery()) {
                 while (results.next()) {
-                    String tableName = results.getString(dbQuery.tableName());
-                    if (StringUtils.isNotBlank(tableName)) {
-                        tableInfo = new TableInfo();
-                        tableInfo.setName(tableName);
-                        String commentColumn = dbQuery.tableComment();
-                        if (StringUtils.isNotBlank(commentColumn)) {
-                            String tableComment = results.getString(commentColumn);
-                            if (config.isSkipView() && "VIEW".equals(tableComment)) {
-                                // 跳过视图
-                                continue;
-                            }
-                            tableInfo.setComment(formatComment(tableComment));
-                        }
-
-                        if (isInclude) {
-                            for (String includeTable : config.getInclude()) {
-                                // 忽略大小写等于 或 正则 true
-                                if (tableNameMatches(includeTable, tableName)) {
-                                    includeTableList.add(tableInfo);
-                                } else {
-                                    //过滤正则表名
-                                    if (!REGX.matcher(includeTable).find()) {
-                                        notExistTables.add(includeTable);
-                                    }
-                                }
-                            }
-                        } else if (isExclude) {
-                            for (String excludeTable : config.getExclude()) {
-                                // 忽略大小写等于 或 正则 true
-                                if (tableNameMatches(excludeTable, tableName)) {
-                                    excludeTableList.add(tableInfo);
-                                } else {
-                                    //过滤正则表名
-                                    if (!REGX.matcher(excludeTable).find()) {
-                                        notExistTables.add(excludeTable);
-                                    }
-                                }
-                            }
-                        }
-                        tableList.add(tableInfo);
-                    } else {
+                    final String tableName = results.getString(dbQuery.tableName());
+                    if (StringUtils.isBlank(tableName)) {
                         System.err.println("当前数据库为空！！！");
+                        continue;
                     }
+                    tableInfo = new TableInfo();
+                    tableInfo.setName(tableName);
+                    String commentColumn = dbQuery.tableComment();
+                    if (StringUtils.isNotBlank(commentColumn)) {
+                        String tableComment = results.getString(commentColumn);
+                        if (config.isSkipView() && "VIEW".equals(tableComment)) {
+                            // 跳过视图
+                            continue;
+                        }
+                        tableInfo.setComment(formatComment(tableComment));
+                    }
+
+                    if (isInclude) {
+                        for (String includeTable : config.getInclude()) {
+                            // 忽略大小写等于 或 正则 true
+                            if (tableNameMatches(includeTable, tableName)) {
+                                includeTableList.add(tableInfo);
+                            } else {
+                                //过滤正则表名
+                                if (!REGX.matcher(includeTable).find()) {
+                                    notExistTables.add(includeTable);
+                                }
+                            }
+                        }
+                    } else if (isExclude) {
+                        for (String excludeTable : config.getExclude()) {
+                            // 忽略大小写等于 或 正则 true
+                            if (tableNameMatches(excludeTable, tableName)) {
+                                excludeTableList.add(tableInfo);
+                            } else {
+                                //过滤正则表名
+                                if (!REGX.matcher(excludeTable).find()) {
+                                    notExistTables.add(excludeTable);
+                                }
+                            }
+                        }
+                    }
+                    tableList.add(tableInfo);
                 }
             }
             // 将已经存在的表移除，获取配置中数据库不存在的表
@@ -580,6 +574,8 @@ public class ConfigBuilder {
                 tableFieldsSql = String.format(tableFieldsSql, dataSourceConfig.getSchemaName(), tableName);
             } else if (DbType.KINGBASE_ES == dbType) {
                 tableFieldsSql = String.format(tableFieldsSql, dataSourceConfig.getSchemaName(), tableName);
+            } else if (DbType.OSCAR == dbType) {
+                tableFieldsSql = String.format(tableFieldsSql, tableName);
             } else if (DbType.DB2 == dbType) {
                 tableFieldsSql = String.format(tableFieldsSql, dataSourceConfig.getSchemaName(), tableName);
             } else if (DbType.ORACLE == dbType) {
@@ -714,7 +710,7 @@ public class ConfigBuilder {
      * @return 连接后的包名
      */
     private String joinPackage(String parent, String subPackage) {
-        return StringUtils.isBlank(parent) ? subPackage : parent + StringPool.DOT + subPackage;
+        return StringUtils.isBlank(parent) ? subPackage : (parent + StringPool.DOT + subPackage);
     }
 
 
@@ -794,7 +790,7 @@ public class ConfigBuilder {
      *
      * @param comment 注释
      * @return 注释
-     * @since 3.3.3
+     * @since 3.4.0
      */
     public String formatComment(String comment) {
         return StringUtils.isBlank(comment) ? StringPool.EMPTY : comment.replaceAll("\r\n", "\t");

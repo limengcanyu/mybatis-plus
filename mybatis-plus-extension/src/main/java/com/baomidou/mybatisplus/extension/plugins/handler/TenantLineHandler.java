@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.baomidou.mybatisplus.extension.plugins.tenant;
+package com.baomidou.mybatisplus.extension.plugins.handler;
 
 import net.sf.jsqlparser.expression.Expression;
 
@@ -21,7 +21,7 @@ import net.sf.jsqlparser.expression.Expression;
  * 租户处理器（ TenantId 行级 ）
  *
  * @author hubin
- * @since 2017-08-31
+ * @since 3.4.0
  */
 public interface TenantLineHandler {
 
@@ -45,14 +45,14 @@ public interface TenantLineHandler {
     }
 
     /**
-     * 根据表名判断是否进行过滤
+     * 根据表名判断是否忽略拼接多租户条件
      * <p>
-     * 默认都要进行解析
+     * 默认都要进行解析并拼接多租户条件
      *
      * @param tableName 表名
-     * @return 是否进行过滤, true:表示忽略，false:需要解析多租户字段
+     * @return 是否忽略, true:表示忽略，false:需要解析并拼接多租户条件
      */
-    default boolean doTableFilter(String tableName) {
+    default boolean ignoreTable(String tableName) {
         return false;
     }
 }

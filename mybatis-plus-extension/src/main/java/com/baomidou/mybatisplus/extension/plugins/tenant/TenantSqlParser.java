@@ -44,8 +44,10 @@ import java.util.List;
  *
  * @author hubin
  * @since 2017-09-01
+ * @deprecated 3.4.0
  */
 @Data
+@Deprecated
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)

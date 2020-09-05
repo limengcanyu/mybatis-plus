@@ -39,7 +39,7 @@ public class SqlParserUtils {
      * @return ignore
      */
     public static String getOriginalCountSql(String originalSql) {
-        return String.format("SELECT COUNT(1) FROM ( %s ) TOTAL", originalSql);
+        return String.format("SELECT COUNT(1) FROM (%s) TOTAL", originalSql);
     }
 
     /**
@@ -49,7 +49,7 @@ public class SqlParserUtils {
      * @param sqlParser        Count SQL 解析类
      * @param originalSql      需要计算Count SQL
      * @return SqlInfo
-     * @deprecated 3.3.3
+     * @deprecated 3.4.0
      */
     @Deprecated
     public static SqlInfo getOptimizeCountSql(boolean optimizeCountSql, ISqlParser sqlParser, String originalSql) {

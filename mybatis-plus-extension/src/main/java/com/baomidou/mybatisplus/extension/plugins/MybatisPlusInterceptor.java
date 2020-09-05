@@ -19,7 +19,7 @@ import java.util.*;
 
 /**
  * @author miemie
- * @since 2020-06-16
+ * @since 3.4.0
  */
 @SuppressWarnings({"rawtypes"})
 @Intercepts(
@@ -65,7 +65,7 @@ public class MybatisPlusInterceptor implements Interceptor {
             } else if (isUpdate) {
                 for (InnerInterceptor update : interceptors) {
                     if (!update.willDoUpdate(executor, ms, parameter)) {
-                        return 0;
+                        return -1;
                     }
                     update.beforeUpdate(executor, ms, parameter);
                 }
@@ -101,10 +101,10 @@ public class MybatisPlusInterceptor implements Interceptor {
     /**
      * 使用内部规则,拿分页插件举个栗子:
      * <p>
-     * - key: "inner:page" ,value: "com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor"
+     * - key: "@page" ,value: "com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor"
      * - key: "page:limit" ,value: "100"
      * <p>
-     * 解读1: key 以 "inner:" 开头定义了这是一个需要组装的 `InnerInterceptor`, 以 "page" 结尾表示别名
+     * 解读1: key 以 "@" 开头定义了这是一个需要组装的 `InnerInterceptor`, 以 "page" 结尾表示别名
      * value 是 `InnerInterceptor` 的具体的 class 全名
      * 解读2: key 以上面定义的 "别名 + ':'" 开头指这个 `value` 是定义的该 `InnerInterceptor` 属性需要设置的值
      * <p>
@@ -113,7 +113,7 @@ public class MybatisPlusInterceptor implements Interceptor {
     @Override
     public void setProperties(Properties properties) {
         PropertyMapper pm = PropertyMapper.newInstance(properties);
-        Map<String, Properties> group = pm.group();
+        Map<String, Properties> group = pm.group("@");
         group.forEach((k, v) -> {
             InnerInterceptor innerInterceptor = ClassUtils.newInstance(k);
             innerInterceptor.setProperties(v);

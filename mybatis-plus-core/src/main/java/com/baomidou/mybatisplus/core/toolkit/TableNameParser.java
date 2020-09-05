@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
  * SQL 表名解析
  * <p>
  * https://github.com/mnadeem/sql-table-name-parser
+ * <p>
  * Ultra light, Ultra fast parser to extract table name out SQLs, supports oracle dialect SQLs as well.
  * USE: new TableNameParser(sql).tables()
  *
@@ -60,7 +61,7 @@ public final class TableNameParser {
      * 4、使用 /* * / 注释的信息
      * 5、把 ,() 也要分出来
      */
-    private static final Pattern NON_SQL_TOKEN_PATTERN = Pattern.compile("(--[^\\v]+)|;|(\\s+)|((?s)/[*].+?[*]/)"
+    private static final Pattern NON_SQL_TOKEN_PATTERN = Pattern.compile("(--[^\\v]+)|;|(\\s+)|((?s)/[*].*?[*]/)"
             + "|(((\\b|\\B)(?=[,()]))|((?<=[,()])(\\b|\\B)))"
     );
 
@@ -243,7 +244,6 @@ public final class TableNameParser {
      * @return table names extracted out of sql
      * @see #accept(TableNameVisitor)
      */
-    @Deprecated
     public Collection<String> tables() {
         Map<String, String> tableMap = new HashMap<>();
         accept(token -> {

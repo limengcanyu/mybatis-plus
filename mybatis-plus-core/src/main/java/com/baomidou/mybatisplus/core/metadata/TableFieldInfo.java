@@ -24,12 +24,10 @@ import lombok.*;
 import org.apache.ibatis.mapping.ResultMapping;
 import org.apache.ibatis.reflection.Reflector;
 import org.apache.ibatis.session.Configuration;
-import org.apache.ibatis.type.JdbcType;
-import org.apache.ibatis.type.TypeHandler;
-import org.apache.ibatis.type.TypeHandlerRegistry;
-import org.apache.ibatis.type.UnknownTypeHandler;
+import org.apache.ibatis.type.*;
 
 import java.lang.reflect.Field;
+import java.util.Map;
 
 /**
  * 数据库表字段反射信息
@@ -67,7 +65,7 @@ public class TableFieldInfo implements Constants {
     /**
      * 是否是基本数据类型
      *
-     * @since 3.3.3 @2020-6-19
+     * @since 3.4.0 @2020-6-19
      */
     private final boolean isPrimitive;
     /**
@@ -185,6 +183,22 @@ public class TableFieldInfo implements Constants {
         }
         if (UnknownTypeHandler.class != typeHandler) {
             this.typeHandler = (Class<? extends TypeHandler<?>>) typeHandler;
+            if (tableField.javaType()) {
+                String javaType = null;
+                TypeAliasRegistry registry = tableInfo.getConfiguration().getTypeAliasRegistry();
+                Map<String, Class<?>> typeAliases = registry.getTypeAliases();
+                for (Map.Entry<String, Class<?>> entry : typeAliases.entrySet()) {
+                    if (entry.getValue().equals(propertyType)) {
+                        javaType = entry.getKey();
+                        break;
+                    }
+                }
+                if (javaType == null) {
+                    javaType = propertyType.getName();
+                    registry.registerAlias(javaType, propertyType);
+                }
+                el += (COMMA + "javaType=" + javaType);
+            }
             el += (COMMA + "typeHandler=" + typeHandler.getName());
         }
         if (StringUtils.isNotBlank(numericScale)) {

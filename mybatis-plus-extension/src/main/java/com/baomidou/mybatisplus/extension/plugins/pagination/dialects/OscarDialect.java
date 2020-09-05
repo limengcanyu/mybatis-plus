@@ -16,10 +16,11 @@
 package com.baomidou.mybatisplus.extension.plugins.pagination.dialects;
 
 /**
- * clickhouse数据库分页语句组装实现
+ * 神通数据分页方言
  *
- * @author hehan.wang
- * @since 2020-05-29
+ * @author wangheli
+ * @since 2020-07-25 9:13
  */
-public class ClickhouseDialect extends MySqlDialect {
+@Deprecated
+public class OscarDialect extends MySqlDialect {
 }

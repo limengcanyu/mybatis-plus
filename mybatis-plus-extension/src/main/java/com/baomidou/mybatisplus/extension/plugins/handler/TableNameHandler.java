@@ -13,28 +13,20 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.baomidou.mybatisplus.extension.plugins.tenant;
+package com.baomidou.mybatisplus.extension.plugins.handler;
 
 /**
- * 租户处理器（ schema 级 ）
- *
- * @author hubin
- * @since 2017-08-31
+ * @author miemie
+ * @since 3.4.0
  */
-public interface TenantSchemaHandler {
+public interface TableNameHandler {
 
     /**
-     * 获取 schema 名
+     * 生成动态表名
      *
-     * @return schema 名
-     */
-    String getTenantSchema();
-
-    /**
-     * 根据表名判断是否进行过滤
-     *
+     * @param sql       当前执行 SQL
      * @param tableName 表名
-     * @return 是否进行过滤
+     * @return String
      */
-    boolean doTableFilter(String tableName);
+    String dynamicTableName(String sql, String tableName);
 }

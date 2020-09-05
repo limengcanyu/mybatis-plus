@@ -1,5 +1,6 @@
 package com.baomidou.mybatisplus.extension.plugins;
 
+import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.inner.InnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.junit.jupiter.api.Test;
@@ -18,8 +19,9 @@ class MybatisPlusInterceptorTest {
     @Test
     void setProperties() {
         Properties properties = new Properties();
-        properties.setProperty("inner:page", "com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor");
-        properties.setProperty("page:limit", "10");
+        properties.setProperty("@page", "com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor");
+        properties.setProperty("page:maxLimit", "10");
+        properties.setProperty("page:dbType", "h2");
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.setProperties(properties);
         List<InnerInterceptor> interceptors = interceptor.getInterceptors();
@@ -31,6 +33,7 @@ class MybatisPlusInterceptorTest {
         assertThat(page).isInstanceOf(PaginationInnerInterceptor.class);
 
         PaginationInnerInterceptor pii = (PaginationInnerInterceptor) page;
-        assertThat(pii.getLimit()).isEqualTo(10);
+        assertThat(pii.getMaxLimit()).isEqualTo(10);
+        assertThat(pii.getDbType()).isEqualTo(DbType.H2);
     }
 }
