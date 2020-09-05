@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,17 +15,15 @@
  */
 package com.baomidou.mybatisplus.core.conditions.segments;
 
-import static com.baomidou.mybatisplus.core.enums.SqlKeyword.ORDER_BY;
-import static java.util.stream.Collectors.joining;
+import com.baomidou.mybatisplus.core.conditions.ISqlSegment;
 
 import java.util.List;
 
-import com.baomidou.mybatisplus.core.conditions.ISqlSegment;
+import static com.baomidou.mybatisplus.core.enums.SqlKeyword.ORDER_BY;
+import static java.util.stream.Collectors.joining;
 
 /**
- * <p>
  * Order By SQL 片段
- * </p>
  *
  * @author miemie
  * @since 2018-06-27
@@ -34,20 +32,19 @@ import com.baomidou.mybatisplus.core.conditions.ISqlSegment;
 public class OrderBySegmentList extends AbstractISegmentList {
 
     @Override
-    protected boolean transformList(List<ISqlSegment> list, ISqlSegment firstSegment) {
+    protected boolean transformList(List<ISqlSegment> list, ISqlSegment firstSegment, ISqlSegment lastSegment) {
         list.remove(0);
-        if (!isEmpty()) {
-            super.add(() -> ",");
-        }
+        final String sql = list.stream().map(ISqlSegment::getSqlSegment).collect(joining(SPACE));
+        list.clear();
+        list.add(() -> sql);
         return true;
     }
 
     @Override
-    public String getSqlSegment() {
+    protected String childrenSqlSegment() {
         if (isEmpty()) {
-            return "";
+            return EMPTY;
         }
-        return this.stream().map(ISqlSegment::getSqlSegment).collect(joining(" ",
-            " " + ORDER_BY.getSqlSegment() + " ", ""));
+        return this.stream().map(ISqlSegment::getSqlSegment).collect(joining(COMMA, SPACE + ORDER_BY.getSqlSegment() + SPACE, EMPTY));
     }
 }

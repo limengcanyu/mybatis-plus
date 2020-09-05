@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2014, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,60 +15,33 @@
  */
 package com.baomidou.mybatisplus.extension.plugins.pagination;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.ibatis.session.RowBounds;
-
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.ClassUtils;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.DB2Dialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.H2Dialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.HSQLDialect;
+import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.DialectRegistry;
 import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.IDialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.MariaDBDialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.MySqlDialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.OracleDialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.PostgreDialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.SQLServer2005Dialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.SQLServerDialect;
-import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.SQLiteDialect;
+import org.apache.ibatis.session.RowBounds;
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * <p>
  * 分页方言工厂类
- * </p>
  *
  * @author hubin
  * @since 2016-01-23
  */
 public class DialectFactory {
 
-    /**
-     * 方言缓存
-     */
-    private static final Map<String, IDialect> DIALECT_CACHE = new ConcurrentHashMap<>();
+    private static final DialectRegistry DIALECT_REGISTRY = new DialectRegistry();
 
     /**
-     * <p>
-     * 生成翻页执行 SQL
-     * </p>
-     *
-     * @param page         翻页对象
-     * @param buildSql     执行 SQL
-     * @param dbType       数据库类型
-     * @param dialectClazz 自定义方言实现类
-     * @return
-     * @throws Exception
+     * 自定义方言缓存
      */
-    public static String buildPaginationSql(Page page, String buildSql, DbType dbType, String dialectClazz)
-        throws Exception {
-        // fix #172, 196
-        return getDialect(dbType, dialectClazz).buildPaginationSql(buildSql, PageHelper.offsetCurrent(page), page.getSize());
-    }
+    private static final Map<String, IDialect> DIALECT_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Physical Page Interceptor for all the queries with parameter
@@ -78,97 +51,43 @@ public class DialectFactory {
      * @param buildSql     编译 SQL
      * @param dbType       数据类型
      * @param dialectClazz 数据库方言
-     * @return
-     * @throws Exception
+     * @return 分页模型
+     * @deprecated 3.3.1
      */
-    public static String buildPaginationSql(IPage page, String buildSql, DbType dbType, String dialectClazz)
-        throws Exception {
+    @Deprecated
+    public static DialectModel buildPaginationSql(IPage<?> page, String buildSql, DbType dbType, String dialectClazz) {
         // fix #196
         return getDialect(dbType, dialectClazz).buildPaginationSql(buildSql, page.offset(), page.getSize());
     }
 
     /**
-     * <p>
      * 获取数据库方言
-     * </p>
      *
      * @param dbType       数据库类型
      * @param dialectClazz 自定义方言实现类
-     * @return
-     * @throws Exception
+     * @return ignore
+     * @deprecated 3.3.1 {@link #getDialect(String)}
      */
-    private static IDialect getDialect(DbType dbType, String dialectClazz) throws Exception {
-        IDialect dialect = DIALECT_CACHE.get(dbType.getDb());
-        if (null == dialect) {
-            // 自定义方言
-            if (StringUtils.isNotEmpty(dialectClazz)) {
-                dialect = DIALECT_CACHE.get(dialectClazz);
-                if (null != dialect) {
-                    return dialect;
-                }
-                try {
-                    Class<?> clazz = Class.forName(dialectClazz);
-                    if (IDialect.class.isAssignableFrom(clazz)) {
-                        dialect = (IDialect) clazz.newInstance();
-                        DIALECT_CACHE.put(dialectClazz, dialect);
-                    }
-                } catch (ClassNotFoundException e) {
-                    throw new MybatisPlusException("Class :" + dialectClazz + " is not found");
-                }
-            } else {
-                // 缓存方言
-                dialect = getDialectByDbType(dbType);
-                DIALECT_CACHE.put(dbType.getDb(), dialect);
-            }
-            /* 未配置方言则抛出异常 */
-            if (dialect == null) {
-                throw new MybatisPlusException("The value of the dialect property in mybatis configuration.xml is not defined.");
-            }
-        }
-        return dialect;
+    @Deprecated
+    private static IDialect getDialect(DbType dbType, String dialectClazz) {
+        //这里需要注意一下，就的版本是把dbType和dialectClazz同时传进来的，所以会存在dbType是一定会有值，dialectClazz可能为空的情况，兼容需要先判断dialectClazz
+        return StringUtils.isBlank(dialectClazz) ? DIALECT_REGISTRY.getDialect(dbType) : DIALECT_CACHE.computeIfAbsent(dialectClazz, ClassUtils::newInstance);
     }
 
     /**
-     * <p>
-     * 根据数据库类型选择不同分页方言
-     * </p>
+     * 获取实现方言
      *
-     * @param dbType 数据库类型
-     * @return
-     * @throws Exception
+     * @param dialectClazz 方言全类名
+     * @return 方言实现对象
+     * @since 3.3.1
      */
-    private static IDialect getDialectByDbType(DbType dbType) {
-        if (dbType == DbType.MYSQL) {
-            return new MySqlDialect();
-        }
-        if (dbType == DbType.MARIADB) {
-            return new MariaDBDialect();
-        }
-        if (dbType == DbType.ORACLE) {
-            return new OracleDialect();
-        }
-        if (dbType == DbType.DB2) {
-            return new DB2Dialect();
-        }
-        if (dbType == DbType.H2) {
-            return new H2Dialect();
-        }
-        if (dbType == DbType.SQL_SERVER) {
-            return new SQLServerDialect();
-        }
-        if (dbType == DbType.SQL_SERVER2005) {
-            return new SQLServer2005Dialect();
-        }
-        if (dbType == DbType.POSTGRE_SQL) {
-            return new PostgreDialect();
-        }
-        if (dbType == DbType.HSQL) {
-            return new HSQLDialect();
-        }
-        if (dbType == DbType.SQLITE) {
-            return new SQLiteDialect();
-        }
-        throw new MybatisPlusException("The Database's Not Supported! DBType:" + dbType);
+    public static IDialect getDialect(String dialectClazz) {
+        return DIALECT_CACHE.computeIfAbsent(dialectClazz, ClassUtils::newInstance);
     }
-
+    
+    public static IDialect getDialect(DbType dbType) {
+        return Optional.ofNullable(DIALECT_REGISTRY.getDialect(dbType))
+            .orElseThrow(() -> new MybatisPlusException(String.format("%s database not supported.", dbType.getDb())));
+    }
+    
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,18 +15,13 @@
  */
 package com.baomidou.mybatisplus.generator.config.rules;
 
-import lombok.Getter;
-
 /**
- * <p>
  * 表字段类型
- * </p>
  *
  * @author hubin
  * @since 2017-01-11
  */
-@Getter
-public enum DbColumnType {
+public enum DbColumnType implements IColumnType {
     // 基本类型
     BASE_BYTE("byte", null),
     BASE_SHORT("short", null),
@@ -61,6 +56,7 @@ public enum DbColumnType {
     YEAR("Year", "java.time.Year"),
     YEAR_MONTH("YearMonth", "java.time.YearMonth"),
     LOCAL_DATE_TIME("LocalDateTime", "java.time.LocalDateTime"),
+    INSTANT("Instant", "java.time.Instant"),
 
     // 其他杂类
     BYTE_ARRAY("byte[]", null),
@@ -82,5 +78,15 @@ public enum DbColumnType {
     DbColumnType(final String type, final String pkg) {
         this.type = type;
         this.pkg = pkg;
+    }
+
+    @Override
+    public String getType() {
+        return type;
+    }
+
+    @Override
+    public String getPkg() {
+        return pkg;
     }
 }

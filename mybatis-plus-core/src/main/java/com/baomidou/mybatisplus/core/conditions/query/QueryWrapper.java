@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,82 +15,109 @@
  */
 package com.baomidou.mybatisplus.core.conditions.query;
 
-import java.io.Serializable;
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
+import com.baomidou.mybatisplus.core.conditions.SharedString;
+import com.baomidou.mybatisplus.core.conditions.segments.MergeSegments;
+import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.toolkit.ArrayUtils;
+import com.baomidou.mybatisplus.core.toolkit.StringPool;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
-import com.baomidou.mybatisplus.core.conditions.segments.MergeSegments;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
-import com.baomidou.mybatisplus.core.toolkit.sql.SqlUtils;
+import java.util.function.Predicate;
 
 /**
- * <p>
  * Entity 对象封装操作类
- * </p>
  *
  * @author hubin miemie HCL
  * @since 2018-05-25
  */
 @SuppressWarnings("serial")
-public class QueryWrapper<T> extends AbstractWrapper<T, String, QueryWrapper<T>> implements Serializable {
+public class QueryWrapper<T> extends AbstractWrapper<T, String, QueryWrapper<T>>
+    implements Query<QueryWrapper<T>, T, String> {
 
     /**
-     * SQL 查询字段内容，例如：id,name,age
+     * 查询字段
      */
-    private String sqlSelect;
+    private SharedString sqlSelect = new SharedString();
 
     public QueryWrapper() {
-        this(null, null);
+        this(null);
     }
 
     public QueryWrapper(T entity) {
-        this(entity, null);
+        super.setEntity(entity);
+        super.initNeed();
     }
 
-    public QueryWrapper(T entity, String sqlSelect) {
-        this.sqlSelect = sqlSelect;
-        this.entity = entity;
-        this.initNeed();
+    public QueryWrapper(T entity, String... columns) {
+        super.setEntity(entity);
+        super.initNeed();
+        this.select(columns);
     }
 
-    private QueryWrapper(T entity, String sqlSelect, AtomicInteger paramNameSeq,
-                         Map<String, Object> paramNameValuePairs, MergeSegments mergeSegments) {
-        this.entity = entity;
-        this.sqlSelect = sqlSelect;
+    /**
+     * 非对外公开的构造方法,只用于生产嵌套 sql
+     *
+     * @param entityClass 本不应该需要的
+     */
+    private QueryWrapper(T entity, Class<T> entityClass, AtomicInteger paramNameSeq,
+                         Map<String, Object> paramNameValuePairs, MergeSegments mergeSegments,
+                         SharedString lastSql, SharedString sqlComment, SharedString sqlFirst) {
+        super.setEntity(entity);
+        super.setEntityClass(entityClass);
         this.paramNameSeq = paramNameSeq;
         this.paramNameValuePairs = paramNameValuePairs;
         this.expression = mergeSegments;
+        this.lastSql = lastSql;
+        this.sqlComment = sqlComment;
+        this.sqlFirst = sqlFirst;
     }
 
     @Override
-    public String getSqlSelect() {
-        return StringUtils.isEmpty(sqlSelect) ? null : SqlUtils.stripSqlInjection(sqlSelect);
-    }
-
-    public QueryWrapper<T> select(String sqlSelect) {
-        if (StringUtils.isNotEmpty(sqlSelect)) {
-            this.sqlSelect = sqlSelect;
+    public QueryWrapper<T> select(String... columns) {
+        if (ArrayUtils.isNotEmpty(columns)) {
+            this.sqlSelect.setStringValue(String.join(StringPool.COMMA, columns));
         }
         return typedThis;
     }
 
+    @Override
+    public QueryWrapper<T> select(Class<T> entityClass, Predicate<TableFieldInfo> predicate) {
+        super.setEntityClass(entityClass);
+        this.sqlSelect.setStringValue(TableInfoHelper.getTableInfo(getEntityClass()).chooseSelect(predicate));
+        return typedThis;
+    }
+
+    @Override
+    public String getSqlSelect() {
+        return sqlSelect.getStringValue();
+    }
+
     /**
-     * <p>
      * 返回一个支持 lambda 函数写法的 wrapper
-     * </p>
      */
     public LambdaQueryWrapper<T> lambda() {
-        return new LambdaQueryWrapper<>(entity, paramNameSeq, paramNameValuePairs, expression);
+        return new LambdaQueryWrapper<>(getEntity(), getEntityClass(), sqlSelect, paramNameSeq, paramNameValuePairs,
+            expression, lastSql, sqlComment, sqlFirst);
+    }
+
+    /**
+     * 用于生成嵌套 sql
+     * <p>
+     * 故 sqlSelect 不向下传递
+     * </p>
+     */
+    @Override
+    protected QueryWrapper<T> instance() {
+        return new QueryWrapper<>(getEntity(), getEntityClass(), paramNameSeq, paramNameValuePairs, new MergeSegments(),
+            SharedString.emptyString(), SharedString.emptyString(), SharedString.emptyString());
     }
 
     @Override
-    protected String columnToString(String column) {
-        return column;
-    }
-
-    @Override
-    protected QueryWrapper<T> instance(AtomicInteger paramNameSeq, Map<String, Object> paramNameValuePairs) {
-        return new QueryWrapper<>(entity, sqlSelect, paramNameSeq, paramNameValuePairs, new MergeSegments());
+    public void clear() {
+        super.clear();
+        sqlSelect.toNull();
     }
 }

@@ -1,299 +1,155 @@
+/*
+ * Copyright (c) 2011-2019, hubin (jobob@qq.com).
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ * <p>
+ * https://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package com.baomidou.mybatisplus.test.mysql;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.test.mysql.entity.CommonData;
+import com.baomidou.mybatisplus.test.mysql.entity.CommonLogicData;
+import com.baomidou.mybatisplus.test.mysql.entity.MysqlData;
+import com.baomidou.mybatisplus.test.mysql.entity.ResultMapEntity;
+import com.baomidou.mybatisplus.test.mysql.enums.TestEnum;
+import com.baomidou.mybatisplus.test.mysql.mapper.MysqlDataMapper;
+import com.baomidou.mybatisplus.test.mysql.mapper.children.CommonDataChildrenMapper;
+import com.baomidou.mybatisplus.test.mysql.mapper.children.CommonLogicDataChildrenMapper;
+import com.baomidou.mybatisplus.test.mysql.mapper.commons.CommonDataCopyMapper;
+import com.baomidou.mybatisplus.test.mysql.mapper.commons.CommonDataMapper;
+import com.baomidou.mybatisplus.test.mysql.mapper.commons.CommonLogicDataMapper;
+import com.baomidou.mybatisplus.test.mysql.mapper.commons.ResultMapEntityMapper;
+import org.apache.ibatis.mapping.MappedStatement;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.annotation.Resource;
+import java.util.*;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.alibaba.fastjson.JSON;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.test.base.entity.LogicTestData;
-import com.baomidou.mybatisplus.test.base.entity.TestData;
-import com.baomidou.mybatisplus.test.base.mapper.LogicTestDataMapper;
-import com.baomidou.mybatisplus.test.base.mapper.TestDataMapper;
-import com.baomidou.mybatisplus.test.mysql.config.MysqlDb;
-import com.baomidou.mybatisplus.test.mysql.service.ILogicTestDataService;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * <p>
  * Mybatis Plus mysql Junit Test
- * </p>
  *
  * @author hubin
  * @since 2018-06-05
  */
-@RunWith(SpringJUnit4ClassRunner.class)
+@DirtiesContext
+@TestMethodOrder(MethodOrderer.Alphanumeric.class)
+@ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = {"classpath:mysql/spring-test-mysql.xml"})
-public class MysqlTestDataMapperTest {
+class MysqlTestDataMapperTest {
+
+    protected final List<String> list = Arrays.asList("1", "2", "3");
+    protected final Map<String, Object> map = list.parallelStream().collect(toMap(identity(), identity()));
+    private static final int success = 1;
+    private static final int fail = 0;
+    @Resource(name = "commonDataMapper")
+    protected CommonDataMapper commonDataMapper;
+    @Resource(name = "commonDataChildrenMapper")
+    protected CommonDataChildrenMapper commonDataChildrenMapper;
+    @Resource(name = "commonLogicDataMapper")
+    protected CommonLogicDataMapper commonLogicDataMapper;
+    @Resource(name = "commonLogicDataChildrenMapper")
+    protected CommonLogicDataChildrenMapper commonLogicDataChildrenMapper;
+    @Resource
+    protected CommonDataCopyMapper commonDataCopyMapper;
+    @Resource
+    protected ResultMapEntityMapper resultMapEntityMapper;
+    @Autowired
+    private SqlSessionFactory sqlSessionFactory;
 
     @Resource
-    private TestDataMapper mapper;
-    @Resource
-    private LogicTestDataMapper logicMapper;
+    private MysqlDataMapper mysqlMapper;
 
-    @Resource
-    private ILogicTestDataService logicTestDataService;
-
-    @BeforeClass
-    public static void init() throws IOException, SQLException {
-        MysqlDb.initMysqlData();
+    @Test
+    void a00() {
+        Configuration configuration = sqlSessionFactory.getConfiguration();
+        assertThat(configuration).isInstanceOf(MybatisConfiguration.class);
+        MappedStatement mappedStatement = configuration.getMappedStatement("com.baomidou.mybatisplus.test.mysql.mapper.MysqlDataMapper.getRandomOne");
+        assertThat(mappedStatement).isNotNull();
     }
 
     @Test
-    public void insertForeach() {
-        LocalDateTime nowDateTime = LocalDateTime.now();
-        LocalDate nowDate = nowDateTime.toLocalDate();
-        LocalTime nowTime = nowDateTime.toLocalTime();
-        for (int i = 0; i < 20; i++) {
-            mapper.insert(new TestData().setTestInt(i).setTestStr(String.format("第%s条数据", i))
-                .setTestDouble(BigDecimal.valueOf(3.3).multiply(BigDecimal.valueOf(i)).doubleValue())
-                .setTestBoolean((i + 3) % 2 == 0).setTestDate(nowDate)
-                .setTestTime(nowTime).setTestDateTime(nowDateTime));
-            logicMapper.insert(new LogicTestData().setTestInt(i).setTestStr(String.format("第%s条数据", i))
-                .setTestDouble(BigDecimal.valueOf(3.3).multiply(BigDecimal.valueOf(i)).doubleValue())
-                .setTestBoolean((i + 3) % 2 == 0).setTestDate(nowDate)
-                .setTestTime(nowTime).setTestDateTime(nowDateTime));
+    void a01_insertForeach() {
+        for (int i = 1; i < 20; i++) {
+            Long id = (long) i;
+            String str = String.format("第%s条数据", i);
+            commonDataMapper.insert(new CommonData().setTestInt(i).setTestStr(str).setId(id)
+                .setTestEnum(TestEnum.ONE));
+            commonLogicDataMapper.insert(new CommonLogicData().setTestInt(i).setTestStr(str).setId(id));
+            resultMapEntityMapper.insert(new ResultMapEntity().setId(id).setList(list).setMap(map).setMapp(map));
+            MysqlData data = new MysqlData().setOrder(i).setGroup(i).setTestStr(str).setYaHoStr(str);
+            mysqlMapper.insert(data);
+            assertThat(data.getId()).isNotNull();
         }
     }
 
     @Test
-    public void deleteById() {
-        mapper.deleteById(1014132604940615682L);
-        logicMapper.deleteById(1014132604940615682L);
+    void a02_insertBatch() {
+        int size = 9;
+        List<CommonData> commonDataList = new ArrayList<>();
+        List<CommonLogicData> commonLogicDataList = new ArrayList<>();
+        List<MysqlData> mysqlDataList = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            String str = i + "条";
+            commonDataList.add(new CommonData().setTestInt(i).setTestEnum(TestEnum.TWO).setTestStr(str));
+            commonLogicDataList.add(new CommonLogicData().setTestInt(i).setTestStr(str));
+            mysqlDataList.add(new MysqlData().setOrder(i).setGroup(i).setTestStr(str).setYaHoStr(str));
+        }
+        assertEquals(size, commonDataMapper.insertBatchSomeColumn(commonDataList));
+        assertEquals(size, commonLogicDataMapper.insertBatchSomeColumn(commonLogicDataList));
+        assertEquals(size, mysqlMapper.insertBatchSomeColumn(mysqlDataList));
     }
 
     @Test
-    public void deleteByMap() {
+    void a03_deleteById() {
+        long id = 1L;
+        assertEquals(success, commonDataMapper.deleteById(id));
+        assertEquals(success, commonLogicDataMapper.deleteById(id));
+        assertEquals(success, mysqlMapper.deleteById(id));
+    }
+
+    @Test
+    void a04_deleteByMap() {
+        long id = 2L;
         Map<String, Object> map = new HashMap<>();
-        map.put("id", 1014361515785568258L);
+        map.put("id", id);
         map.put("test_int", 5);
-        mapper.deleteByMap(map);
-        logicMapper.deleteByMap(map);
+        assertEquals(fail, commonDataMapper.deleteByMap(map));
+        assertEquals(fail, commonLogicDataMapper.deleteByMap(map));
+        Map<String, Object> map2 = new HashMap<>();
+        map2.put("id", id);
+        map2.put("`order`", 5);
+        assertEquals(fail, mysqlMapper.deleteByMap(map2));
     }
 
     @Test
-    public void delete() {
-        mapper.delete(new QueryWrapper<TestData>().lambda()
-            .eq(TestData::getId, 1014132604940615682L)
-            .eq(TestData::getTestInt, 1));
-        logicMapper.delete(new QueryWrapper<LogicTestData>().lambda()
-            .eq(LogicTestData::getId, 1014132604940615682L)
-            .eq(LogicTestData::getTestInt, 1));
-    }
-
-    @Test
-    public void deleteBatchIds() {
-        List<Long> ids = Arrays.asList(1014132604940615682L, 1014132604940615652L);
-        mapper.deleteBatchIds(ids);
-        logicMapper.deleteBatchIds(ids);
-    }
-
-    @Test
-    public void updateTimeIssue() {
-//        mapper.updateById(new TestData().setId(1014132604940615682L).setTestInt(1111111111));
-        LogicTestData et = new LogicTestData()
-            .setId(1019248035919613954L)
-            .setTestInt(9991122)
-            .setVersion(19);
-        System.out.println("====1=====>>>" + JSON.toJSONString(et, true));
-        boolean r = logicTestDataService.saveOrUpdate(et);
-        System.out.println("====2-1==r==>>>" + r);
-        System.out.println("====2-2=====>>>" + JSON.toJSONString(et, true));
-    }
-
-    @Test
-    public void optimisticUpdateById() {
-//        mapper.updateById(new TestData().setId(1014132604940615682L).setTestInt(1111111111));
-        LogicTestData et = new LogicTestData()
-            .setId(1019248035919613954L)
-            .setTestInt(999)
-            .setVersion(17);
-        System.out.println("====1=====>>>" + JSON.toJSONString(et, true));
-        int r = logicMapper.updateById(et);
-        System.out.println("====2-1==r==>>>" + r);
-        System.out.println("====2-2=====>>>" + JSON.toJSONString(et, true));
-    }
-
-    @Test
-    public void updateById() {
-        mapper.updateById(new TestData().setId(1014132604940615682L).setTestInt(1111111111));
-        logicMapper.updateById(new LogicTestData().setId(1014132604940615682L).setTestInt(1111111111));
-    }
-
-    @Test
-    public void update() {
-        // type 1
-        mapper.update(new TestData(), null);
-        logicMapper.update(new LogicTestData(), null);
-        // type 2
-        mapper.update(new TestData(), new UpdateWrapper<TestData>()
-            .set("test_int", 5));
-        logicMapper.update(new LogicTestData(), new UpdateWrapper<LogicTestData>()
-            .set("test_int", 5));
-//        // type 3
-        mapper.update(new TestData(), new UpdateWrapper<TestData>()
-            .set("test_int", 5).eq("id", 1014361515554881538L));
-        logicMapper.update(new LogicTestData(), new UpdateWrapper<LogicTestData>()
-            .set("test_int", 5).eq("id", 1014361515554881538L));
-//        // type 4
-        mapper.update(new TestData(), new UpdateWrapper<TestData>()
-            .eq("id", 1014361515554881538L));
-        logicMapper.update(new LogicTestData(), new UpdateWrapper<LogicTestData>()
-            .eq("id", 1014361515554881538L));
-//        // type 5
-        mapper.update(new TestData(), new UpdateWrapper<TestData>()
-            .setEntity(new TestData().setTestInt(1)));
-        logicMapper.update(new LogicTestData(), new UpdateWrapper<LogicTestData>()
-            .setEntity(new LogicTestData().setTestInt(1)));
-//        // type 6
-        mapper.update(new TestData(), new UpdateWrapper<TestData>()
-            .setEntity(new TestData().setTestInt(1))
-            .eq("id", 1014361515554881538L));
-        logicMapper.update(new LogicTestData(), new UpdateWrapper<LogicTestData>()
-            .setEntity(new LogicTestData().setTestInt(1))
-            .eq("id", 1014361515554881538L));
-//        // type 7
-        mapper.update(new TestData(), new UpdateWrapper<TestData>()
-            .setEntity(new TestData().setTestInt(1))
-            .set("test_int", 55555)
-            .eq("id", 1014361515554881538L));
-        logicMapper.update(new LogicTestData(), new UpdateWrapper<LogicTestData>()
-            .setEntity(new LogicTestData().setTestInt(1))
-            .set("test_int", 55555)
-            .eq("id", 1014361515554881538L));
-    }
-
-    @Test
-    public void selectById() {
-        mapper.selectById(1L);
-        logicMapper.selectById(1L);
-    }
-
-    @Test
-    public void selectBatchIds() {
-        List<Long> ids = Arrays.asList(1014132604940615682L, 1014132604940615652L);
-        mapper.selectBatchIds(ids);
-        logicMapper.selectBatchIds(ids);
-    }
-
-    @Test
-    public void selectByMap() {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", 1L);
-        map.put("test_int", 1);
-        mapper.selectByMap(map);
-        logicMapper.selectByMap(map);
-    }
-
-    @Test
-    public void selectOne() {
-        mapper.selectOne(new QueryWrapper<TestData>().lambda()
-            .eq(TestData::getId, 1L).eq(TestData::getTestInt, 1));
-        logicMapper.selectOne(new QueryWrapper<LogicTestData>().lambda()
-            .eq(LogicTestData::getId, 1L).eq(LogicTestData::getTestInt, 1));
-    }
-
-    @Test
-    public void selectList() {
-        mapper.selectList(new QueryWrapper<TestData>().lambda()
-            .eq(TestData::getId, 1L).eq(TestData::getTestInt, 1));
-        logicMapper.selectList(new QueryWrapper<LogicTestData>().lambda()
-            .eq(LogicTestData::getId, 1L).eq(LogicTestData::getTestInt, 1));
-        logicMapper.selectList(null);
-    }
-
-    @Test
-    public void commonSelectList() {
-        println(mapper.selectList(new QueryWrapper<TestData>()
-            .eq("id", 1L)
-            .like("test_str", 1)
-            .between("test_double", 1L, 2L)));
-    }
-
-    @Test
-    public void specialSelectList() {
-        println(mapper.selectList(new QueryWrapper<TestData>().lambda()
-            .nested(i -> i.eq(TestData::getId, 1L))
-            .or(i -> i.between(TestData::getTestDouble, 1L, 2L))
-            .or(i -> i.eq(TestData::getTestInt, 1)
-                .or().eq(TestData::getTestDate, 1)
-            )
-            .eq(TestData::getTestBoolean, true)
-            .eq(TestData::getTestDate, LocalDate.of(2008, 8, 8))
-            .between(TestData::getTestDate, LocalDate.of(2008, 1, 1),
-                LocalDate.of(2008, 12, 12))));
-    }
-
-    @Test
-    public void selectPage() {
-        IPage<TestData> page = new Page<>();
-        page.setSize(5).setCurrent(1);
-        IPage<TestData> dataPage = mapper.selectPage(page, null);
-        Assert.assertSame(dataPage, page);
-        System.out.println(String.format("total = {%s}", dataPage.getTotal()));
-        System.out.println(String.format("data.size = {%s}", dataPage.getRecords().size()));
-        println(page.getRecords());
-        System.out.println(JSON.toJSONString(page));
-
-        IPage<LogicTestData> logicPage = new Page<>();
-        logicPage.setSize(5).setCurrent(1);
-        IPage<LogicTestData> logicDataPage = logicMapper.selectPage(logicPage, null);
-        Assert.assertSame(logicDataPage, logicPage);
-        System.out.println(String.format("total = {%s}", logicDataPage.getTotal()));
-        System.out.println(String.format("data.size = {%s}", logicDataPage.getRecords().size()));
-        println(logicDataPage.getRecords());
-        System.out.println(JSON.toJSONString(logicDataPage));
-
-    }
-
-    @Test
-    public void testIn() {
-        println(mapper.selectList(new QueryWrapper<TestData>()
-//            .in("test_int", Arrays.asList(1, 2, 3))//ok
-//                .notIn("test_int", Arrays.asList(1, 2, 3)//ok
-//                .in("test_int", 1, 2, 3)//ok
-//                .notIn("test_int", 1, 2, 3)//ok
-                .inSql("test_int", "1,2,3")//ok
-                .notInSql("test_int", "2,3")//ok
-        ));
-    }
-
-    @Test
-    public void testExists() {
-        println(mapper.selectList(new QueryWrapper<TestData>()
-            .exists("select * from test_data")//ok
-            .or()
-            .notExists("select * from test_data")//ok
-        ));
-        /* exists 连着用是可行的 */
-    }
-
-    @Test
-    public void testApply() {
-        println(mapper.selectList(new QueryWrapper<TestData>()
-            .apply("test_int = 1")
-        ));
-    }
-
-    private <T> void println(List<T> list) {
-        list.forEach(System.out::println);
+    void a05_select() {
+        long id = 4L;
+        List<ResultMapEntity> entitys = resultMapEntityMapper.selectBatchIds(Collections.singletonList(id));
+        assertThat(entitys).isNotEmpty();
+        assertThat(entitys.size()).isEqualTo(1);
+        assertThat(entitys.get(0).getColumn4()).isNotNull();
     }
 }

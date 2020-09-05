@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2011-2020, hubin (jobob@qq.com).
+ * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
  * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,16 +15,9 @@
  */
 package com.baomidou.mybatisplus.core;
 
-import java.io.InputStream;
-import java.io.Reader;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.Set;
-
-import javax.sql.DataSource;
-
 import org.apache.ibatis.builder.BaseBuilder;
 import org.apache.ibatis.builder.BuilderException;
+import org.apache.ibatis.builder.xml.XMLConfigBuilder;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.builder.xml.XMLMapperEntityResolver;
 import org.apache.ibatis.datasource.DataSourceFactory;
@@ -44,29 +37,29 @@ import org.apache.ibatis.reflection.MetaClass;
 import org.apache.ibatis.reflection.ReflectorFactory;
 import org.apache.ibatis.reflection.factory.ObjectFactory;
 import org.apache.ibatis.reflection.wrapper.ObjectWrapperFactory;
-import org.apache.ibatis.session.AutoMappingBehavior;
-import org.apache.ibatis.session.AutoMappingUnknownColumnBehavior;
-import org.apache.ibatis.session.Configuration;
-import org.apache.ibatis.session.ExecutorType;
-import org.apache.ibatis.session.LocalCacheScope;
+import org.apache.ibatis.session.*;
 import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.type.JdbcType;
 
+import javax.sql.DataSource;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.HashSet;
+import java.util.Properties;
+import java.util.Set;
+
 /**
- * <p>
- * Copy from XMLConfigBuilder in Mybatis and replace default Configuration class
- * by MybatisConfiguration class
- * </p>
+ * 从 {@link XMLConfigBuilder} copy 过来, 使用自己的 MybatisConfiguration 而不是 Configuration
  *
  * @author hubin
  * @since 2017-01-04
  */
 public class MybatisXMLConfigBuilder extends BaseBuilder {
 
-    private boolean parsed;
     private final XPathParser parser;
-    private String environment;
     private final ReflectorFactory localReflectorFactory = new DefaultReflectorFactory();
+    private boolean parsed;
+    private String environment;
 
     public MybatisXMLConfigBuilder(Reader reader) {
         this(reader, null, null);
@@ -93,13 +86,21 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
     }
 
     private MybatisXMLConfigBuilder(XPathParser parser, String environment, Properties props) {
-        //TODO 自定义 Configuration
+        // TODO 使用 MybatisConfiguration 而不是 Configuration
         super(new MybatisConfiguration());
         ErrorContext.instance().resource("SQL Mapper Configuration");
         this.configuration.setVariables(props);
         this.parsed = false;
         this.environment = environment;
         this.parser = parser;
+    }
+
+    /**
+     * TODO 重写改方法,返回值是 MybatisConfiguration 而不是 Configuration
+     */
+    @Override
+    public MybatisConfiguration getConfiguration() {
+        return (MybatisConfiguration) this.configuration;
     }
 
     public Configuration parse() {
@@ -117,6 +118,7 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
             propertiesElement(root.evalNode("properties"));
             Properties settings = settingsAsProperties(root.evalNode("settings"));
             loadCustomVfs(settings);
+            loadCustomLogImpl(settings);
             typeAliasesElement(root.evalNode("typeAliases"));
             pluginElement(root.evalNode("plugins"));
             objectFactoryElement(root.evalNode("objectFactory"));
@@ -162,6 +164,11 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         }
     }
 
+    private void loadCustomLogImpl(Properties props) {
+        Class<? extends Log> logImpl = resolveClass(props.getProperty("logImpl"));
+        configuration.setLogImpl(logImpl);
+    }
+
     private void typeAliasesElement(XNode parent) {
         if (parent != null) {
             for (XNode child : parent.getChildren()) {
@@ -186,40 +193,40 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         }
     }
 
-    private void pluginElement(XNode parent) throws Exception {
+    private void pluginElement(XNode parent) {
         if (parent != null) {
             for (XNode child : parent.getChildren()) {
                 String interceptor = child.getStringAttribute("interceptor");
                 Properties properties = child.getChildrenAsProperties();
-                Interceptor interceptorInstance = (Interceptor) resolveClass(interceptor).newInstance();
+                Interceptor interceptorInstance = (Interceptor) createInstance(interceptor);
                 interceptorInstance.setProperties(properties);
                 configuration.addInterceptor(interceptorInstance);
             }
         }
     }
 
-    private void objectFactoryElement(XNode context) throws Exception {
+    private void objectFactoryElement(XNode context) {
         if (context != null) {
             String type = context.getStringAttribute("type");
             Properties properties = context.getChildrenAsProperties();
-            ObjectFactory factory = (ObjectFactory) resolveClass(type).newInstance();
+            ObjectFactory factory = (ObjectFactory) createInstance(type);
             factory.setProperties(properties);
             configuration.setObjectFactory(factory);
         }
     }
 
-    private void objectWrapperFactoryElement(XNode context) throws Exception {
+    private void objectWrapperFactoryElement(XNode context) {
         if (context != null) {
             String type = context.getStringAttribute("type");
-            ObjectWrapperFactory factory = (ObjectWrapperFactory) resolveClass(type).newInstance();
+            ObjectWrapperFactory factory = (ObjectWrapperFactory) createInstance(type);
             configuration.setObjectWrapperFactory(factory);
         }
     }
 
-    private void reflectorFactoryElement(XNode context) throws Exception {
+    private void reflectorFactoryElement(XNode context) {
         if (context != null) {
             String type = context.getStringAttribute("type");
-            ReflectorFactory factory = (ReflectorFactory) resolveClass(type).newInstance();
+            ReflectorFactory factory = (ReflectorFactory) createInstance(type);
             configuration.setReflectorFactory(factory);
         }
     }
@@ -246,7 +253,7 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         }
     }
 
-    private void settingsElement(Properties props) throws Exception {
+    private void settingsElement(Properties props) {
         configuration.setAutoMappingBehavior(AutoMappingBehavior.valueOf(props.getProperty("autoMappingBehavior", "PARTIAL")));
         configuration.setAutoMappingUnknownColumnBehavior(AutoMappingUnknownColumnBehavior.valueOf(props.getProperty("autoMappingUnknownColumnBehavior", "NONE")));
         configuration.setCacheEnabled(booleanValueOf(props.getProperty("cacheEnabled"), true));
@@ -259,20 +266,19 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         configuration.setDefaultExecutorType(ExecutorType.valueOf(props.getProperty("defaultExecutorType", "SIMPLE")));
         configuration.setDefaultStatementTimeout(integerValueOf(props.getProperty("defaultStatementTimeout"), null));
         configuration.setDefaultFetchSize(integerValueOf(props.getProperty("defaultFetchSize"), null));
-        configuration.setMapUnderscoreToCamelCase(booleanValueOf(props.getProperty("mapUnderscoreToCamelCase"), false));
+        // TODO 统一 mapUnderscoreToCamelCase 属性默认值为 true
+        configuration.setMapUnderscoreToCamelCase(booleanValueOf(props.getProperty("mapUnderscoreToCamelCase"), true));
         configuration.setSafeRowBoundsEnabled(booleanValueOf(props.getProperty("safeRowBoundsEnabled"), false));
         configuration.setLocalCacheScope(LocalCacheScope.valueOf(props.getProperty("localCacheScope", "SESSION")));
         configuration.setJdbcTypeForNull(JdbcType.valueOf(props.getProperty("jdbcTypeForNull", "OTHER")));
         configuration.setLazyLoadTriggerMethods(stringSetValueOf(props.getProperty("lazyLoadTriggerMethods"), "equals,clone,hashCode,toString"));
         configuration.setSafeResultHandlerEnabled(booleanValueOf(props.getProperty("safeResultHandlerEnabled"), true));
         configuration.setDefaultScriptingLanguage(resolveClass(props.getProperty("defaultScriptingLanguage")));
+        configuration.setDefaultEnumTypeHandler(resolveClass(props.getProperty("defaultEnumTypeHandler")));
         configuration.setCallSettersOnNulls(booleanValueOf(props.getProperty("callSettersOnNulls"), false));
         configuration.setUseActualParamName(booleanValueOf(props.getProperty("useActualParamName"), true));
         configuration.setReturnInstanceForEmptyRow(booleanValueOf(props.getProperty("returnInstanceForEmptyRow"), false));
         configuration.setLogPrefix(props.getProperty("logPrefix"));
-        @SuppressWarnings("unchecked")
-        Class<? extends Log> logImpl = (Class<? extends Log>) resolveClass(props.getProperty("logImpl"));
-        configuration.setLogImpl(logImpl);
         configuration.setConfigurationFactory(resolveClass(props.getProperty("configurationFactory")));
     }
 
@@ -305,7 +311,7 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
                 type = "DB_VENDOR";
             }
             Properties properties = context.getChildrenAsProperties();
-            databaseIdProvider = (DatabaseIdProvider) resolveClass(type).newInstance();
+            databaseIdProvider = (DatabaseIdProvider) createInstance(type);
             databaseIdProvider.setProperties(properties);
         }
         Environment environment = configuration.getEnvironment();
@@ -315,29 +321,29 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         }
     }
 
-    private TransactionFactory transactionManagerElement(XNode context) throws Exception {
+    private TransactionFactory transactionManagerElement(XNode context) {
         if (context != null) {
             String type = context.getStringAttribute("type");
             Properties props = context.getChildrenAsProperties();
-            TransactionFactory factory = (TransactionFactory) resolveClass(type).newInstance();
+            TransactionFactory factory = (TransactionFactory) createInstance(type);
             factory.setProperties(props);
             return factory;
         }
         throw new BuilderException("Environment declaration requires a TransactionFactory.");
     }
 
-    private DataSourceFactory dataSourceElement(XNode context) throws Exception {
+    private DataSourceFactory dataSourceElement(XNode context) {
         if (context != null) {
             String type = context.getStringAttribute("type");
             Properties props = context.getChildrenAsProperties();
-            DataSourceFactory factory = (DataSourceFactory) resolveClass(type).newInstance();
+            DataSourceFactory factory = (DataSourceFactory) createInstance(type);
             factory.setProperties(props);
             return factory;
         }
         throw new BuilderException("Environment declaration requires a DataSourceFactory.");
     }
 
-    private void typeHandlerElement(XNode parent) throws Exception {
+    private void typeHandlerElement(XNode parent) {
         if (parent != null) {
             for (XNode child : parent.getChildren()) {
                 if ("package".equals(child.getName())) {
@@ -365,7 +371,7 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
     }
 
     private void mapperElement(XNode parent) throws Exception {
-        /**
+        /*
          * 定义集合 用来分类放置mybatis的Mapper与XML 按顺序依次遍历
          */
         if (parent != null) {
@@ -435,5 +441,4 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         }
         return false;
     }
-
 }
