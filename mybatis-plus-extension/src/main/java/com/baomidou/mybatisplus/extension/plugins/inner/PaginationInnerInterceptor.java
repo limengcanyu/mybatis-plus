@@ -31,8 +31,6 @@ import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
-import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
@@ -76,9 +74,8 @@ public class PaginationInnerInterceptor implements InnerInterceptor {
      */
     private static SelectItem defaultCountSelectItem() {
         Function function = new Function();
-        ExpressionList expressionList = new ExpressionList(Collections.singletonList(new LongValue(1)));
         function.setName("COUNT");
-        function.setParameters(expressionList);
+        function.setAllColumns(true);
         return new SelectExpressionItem(function);
     }
 
@@ -295,13 +292,24 @@ public class PaginationInnerInterceptor implements InnerInterceptor {
             if (CollectionUtils.isNotEmpty(joins)) {
                 boolean canRemoveJoin = true;
                 String whereS = Optional.ofNullable(plainSelect.getWhere()).map(Expression::toString).orElse(StringPool.EMPTY);
+                // 不区分大小写
+                whereS = whereS.toLowerCase();
                 for (Join join : joins) {
                     if (!join.isLeft()) {
                         canRemoveJoin = false;
                         break;
                     }
-                    Table table = (Table) join.getRightItem();
-                    String str = Optional.ofNullable(table.getAlias()).map(Alias::getName).orElse(table.getName()) + StringPool.DOT;
+                    FromItem rightItem = join.getRightItem();
+                    String str = "";
+                    if (rightItem instanceof Table) {
+                        Table table = (Table) rightItem;
+                        str = Optional.ofNullable(table.getAlias()).map(Alias::getName).orElse(table.getName()) + StringPool.DOT;
+                    } else if (rightItem instanceof SubSelect) {
+                        SubSelect subSelect = (SubSelect) rightItem;
+                        str = subSelect.getAlias().getName() + StringPool.DOT;
+                    }
+                    // 不区分大小写
+                    str = str.toLowerCase();
                     String onExpressionS = join.getOnExpression().toString();
                     /* 如果 join 里包含 ?(代表有入参) 或者 where 条件里包含使用 join 的表的字段作条件,就不移除 join */
                     if (onExpressionS.contains(StringPool.QUESTION_MARK) || whereS.contains(str)) {
@@ -316,11 +324,13 @@ public class PaginationInnerInterceptor implements InnerInterceptor {
             // 优化 SQL
             plainSelect.setSelectItems(COUNT_SELECT_ITEM);
             return select.toString();
-        } catch (Throwable e) {
+        } catch (JSQLParserException e) {
             // 无法优化使用原 SQL
             logger.warn("optimize this sql to a count sql has exception, sql:\"" + sql + "\", exception:\n" + e.getCause());
-            return lowLevelCountSql(sql);
+        } catch (Exception e) {
+            logger.warn("optimize this sql to a count sql has error, sql:\"" + sql + "\", exception:\n" + e);
         }
+        return lowLevelCountSql(sql);
     }
 
     /**
@@ -363,8 +373,10 @@ public class PaginationInnerInterceptor implements InnerInterceptor {
             }
         } catch (JSQLParserException e) {
             logger.warn("failed to concat orderBy from IPage, exception:\n" + e.getCause());
-            return originalSql;
+        } catch (Exception e) {
+            logger.warn("failed to concat orderBy from IPage, exception:\n" + e);
         }
+        return originalSql;
     }
 
     protected List<OrderByElement> addOrderByElements(List<OrderItem> orderList, List<OrderByElement> orderByElements) {

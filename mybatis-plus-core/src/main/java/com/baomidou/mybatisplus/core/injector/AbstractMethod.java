@@ -45,6 +45,7 @@ import static java.util.stream.Collectors.joining;
  * @author hubin
  * @since 2018-04-06
  */
+@SuppressWarnings("serial")
 public abstract class AbstractMethod implements Constants {
     protected static final Log logger = LogFactory.getLog(AbstractMethod.class);
 
@@ -156,7 +157,7 @@ public abstract class AbstractMethod implements Constants {
      */
     protected String sqlCount() {
         return SqlScriptUtils.convertChoose(String.format("%s != null and %s != null", WRAPPER, Q_WRAPPER_SQL_SELECT),
-            SqlScriptUtils.unSafeParam(Q_WRAPPER_SQL_SELECT), ONE);
+            SqlScriptUtils.unSafeParam(Q_WRAPPER_SQL_SELECT), ASTERISK);
     }
 
     /**

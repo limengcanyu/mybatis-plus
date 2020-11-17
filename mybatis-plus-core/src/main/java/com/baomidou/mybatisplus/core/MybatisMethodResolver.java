@@ -15,7 +15,6 @@
  */
 package com.baomidou.mybatisplus.core;
 
-import org.apache.ibatis.builder.annotation.MapperAnnotationBuilder;
 import org.apache.ibatis.builder.annotation.MethodResolver;
 
 import java.lang.reflect.Method;
@@ -31,9 +30,9 @@ public class MybatisMethodResolver extends MethodResolver {
     private final MybatisMapperAnnotationBuilder annotationBuilder;
     private final Method method;
 
-    public MybatisMethodResolver(MapperAnnotationBuilder annotationBuilder, Method method) {
+    public MybatisMethodResolver(MybatisMapperAnnotationBuilder annotationBuilder, Method method) {
         super(annotationBuilder, method);
-        this.annotationBuilder = (MybatisMapperAnnotationBuilder) annotationBuilder;
+        this.annotationBuilder = annotationBuilder;
         this.method = method;
     }
 

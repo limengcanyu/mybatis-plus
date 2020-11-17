@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  * @since 2018-12-19
  */
 @SuppressWarnings({"serial", "unchecked"})
-public abstract class AbstractChainWrapper<T, R, Children extends AbstractChainWrapper<T, R, Children, Param>, Param>
+public abstract class AbstractChainWrapper<T, R, Children extends AbstractChainWrapper<T, R, Children, Param>, Param extends AbstractWrapper<T, R, Param>>
     extends Wrapper<T> implements Compare<Children, R>, Func<Children, R>, Join<Children>, Nested<Param, Children> {
 
     protected final Children typedThis = (Children) this;
@@ -53,9 +53,8 @@ public abstract class AbstractChainWrapper<T, R, Children extends AbstractChainW
     public AbstractChainWrapper() {
     }
 
-    @SuppressWarnings("rawtypes")
-    public AbstractWrapper getWrapper() {
-        return (AbstractWrapper) wrapperChildren;
+    public AbstractWrapper<T, R, Param> getWrapper() {
+        return wrapperChildren;
     }
 
     public Children setEntity(T entity) {

@@ -16,7 +16,6 @@
 package com.baomidou.mybatisplus.generator.config.builder;
 
 import com.baomidou.mybatisplus.annotation.DbType;
-import com.baomidou.mybatisplus.core.toolkit.ArrayUtils;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.StringPool;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
@@ -56,22 +55,7 @@ public class ConfigBuilder {
     /**
      * SQL连接
      */
-    private Connection connection;
-    /**
-     * SQL语句类型
-     */
-    @Deprecated
-    private IDbQuery dbQuery;
-    @Deprecated
-    private DbType dbType;
-    private String superEntityClass;
-    private String superMapperClass;
-    /**
-     * service超类定义
-     */
-    private String superServiceClass;
-    private String superServiceImplClass;
-    private String superControllerClass;
+    private final Connection connection;
     /**
      * 数据库表信息
      */
@@ -97,14 +81,9 @@ public class ConfigBuilder {
      */
     private InjectionConfig injectionConfig;
     /**
-     * 是否支持注释
-     */
-    @Deprecated
-    private boolean commentSupported;
-    /**
      * 过滤正则
      */
-    private static final Pattern REGX = Pattern.compile("[~!/@#$%^&*()-_=+\\\\|[{}];:'\",<.>?]+");
+    private static final Pattern REGX = Pattern.compile("[~!/@#$%^&*()+\\\\\\[\\]|{};:'\",<.>?]+");
 
     /**
      * 在构造器中处理配置
@@ -128,13 +107,10 @@ public class ConfigBuilder {
             handlerPackage(this.template, this.globalConfig.getOutputDir(), packageConfig);
         }
         this.dataSourceConfig = dataSourceConfig;
-        handlerDataSource(dataSourceConfig);
+        this.connection = dataSourceConfig.getConn();
         // 策略配置
         this.strategyConfig = Optional.ofNullable(strategyConfig).orElseGet(StrategyConfig::new);
-        //SQLITE 数据库不支持注释获取
-        commentSupported = !dataSourceConfig.getDbType().equals(DbType.SQLITE);
-
-        handlerStrategy(this.strategyConfig);
+        this.tableInfoList = getTablesInfo(this.strategyConfig);
     }
 
     // ************************ 曝露方法 BEGIN*****************************
@@ -158,37 +134,6 @@ public class ConfigBuilder {
         return pathInfo;
     }
 
-
-    public String getSuperEntityClass() {
-        return superEntityClass;
-    }
-
-
-    public String getSuperMapperClass() {
-        return superMapperClass;
-    }
-
-
-    /**
-     * 获取超类定义
-     *
-     * @return 完整超类名称
-     */
-    public String getSuperServiceClass() {
-        return superServiceClass;
-    }
-
-
-    public String getSuperServiceImplClass() {
-        return superServiceImplClass;
-    }
-
-
-    public String getSuperControllerClass() {
-        return superControllerClass;
-    }
-
-
     /**
      * 表信息
      *
@@ -202,7 +147,6 @@ public class ConfigBuilder {
         this.tableInfoList = tableInfoList;
         return this;
     }
-
 
     /**
      * 模板路径配置信息
@@ -256,59 +200,6 @@ public class ConfigBuilder {
     }
 
     /**
-     * 处理数据源配置
-     *
-     * @param config DataSourceConfig
-     */
-    private void handlerDataSource(DataSourceConfig config) {
-        connection = config.getConn();
-        dbType = config.getDbType();
-        dbQuery = config.getDbQuery();
-    }
-
-
-    /**
-     * 处理数据库表 加载数据库表、列、注释相关数据集
-     *
-     * @param config StrategyConfig
-     */
-    private void handlerStrategy(StrategyConfig config) {
-        processTypes(config);
-        tableInfoList = getTablesInfo(config);
-    }
-
-
-    /**
-     * 处理superClassName,IdClassType,IdStrategy配置
-     *
-     * @param config 策略配置
-     */
-    private void processTypes(StrategyConfig config) {
-        this.superServiceClass = getValueOrDefault(config.getSuperServiceClass(), ConstVal.SUPER_SERVICE_CLASS);
-        this.superServiceImplClass = getValueOrDefault(config.getSuperServiceImplClass(), ConstVal.SUPER_SERVICE_IMPL_CLASS);
-        this.superMapperClass = getValueOrDefault(config.getSuperMapperClass(), ConstVal.SUPER_MAPPER_CLASS);
-        superEntityClass = config.getSuperEntityClass();
-        superControllerClass = config.getSuperControllerClass();
-    }
-
-    private static String getValueOrDefault(String value, String defaultValue) {
-        return StringUtils.isBlank(value) ? defaultValue : value;
-    }
-
-    /**
-     * 处理表对应的类名称
-     *
-     * @param tableList 表名称
-     * @param config    策略配置项
-     * @return 补充完整信息后的表
-     * @deprecated 3.3.2
-     */
-    @Deprecated
-    private List<TableInfo> processTable(List<TableInfo> tableList, NamingStrategy strategy, StrategyConfig config) {
-        return processTable(tableList, config);
-    }
-
-    /**
      * 处理表对应的类名称
      *
      * @param tableList 表名称
@@ -316,7 +207,6 @@ public class ConfigBuilder {
      * @return 补充完整信息后的表
      */
     private List<TableInfo> processTable(List<TableInfo> tableList, StrategyConfig config) {
-        String[] tablePrefix = config.getTablePrefix();
         for (TableInfo tableInfo : tableList) {
             String entityName;
             INameConvert nameConvert = strategyConfig.getNameConvert();
@@ -324,7 +214,7 @@ public class ConfigBuilder {
                 // 自定义处理实体名称
                 entityName = nameConvert.entityNameConvert(tableInfo);
             } else {
-                entityName = NamingStrategy.capitalFirst(processName(tableInfo.getName(), config.getNaming(), tablePrefix));
+                entityName = NamingStrategy.capitalFirst(processName(tableInfo.getName(), config.getNaming(), config.getTablePrefix()));
             }
             if (StringUtils.isNotBlank(globalConfig.getEntityName())) {
                 tableInfo.setConvert(true);
@@ -396,8 +286,8 @@ public class ConfigBuilder {
      * 获取所有的数据库表信息
      */
     private List<TableInfo> getTablesInfo(StrategyConfig config) {
-        boolean isInclude = (null != config.getInclude() && config.getInclude().length > 0);
-        boolean isExclude = (null != config.getExclude() && config.getExclude().length > 0);
+        boolean isInclude = config.getInclude().size() > 0;
+        boolean isExclude = config.getExclude().size() > 0;
         if (isInclude && isExclude) {
             throw new RuntimeException("<strategy> 标签中 <include> 与 <exclude> 只能配置一项！");
         }
@@ -424,6 +314,8 @@ public class ConfigBuilder {
                     schema = "public";
                     dataSourceConfig.setSchemaName(schema);
                 }
+                //TODO 还原代码后解决PgSchema的问题.
+                this.connection.setSchema(schema);
                 tablesSql = String.format(tablesSql, schema);
             } else if (DbType.KINGBASE_ES == dbType) {
                 String schema = dataSourceConfig.getSchemaName();
@@ -461,10 +353,10 @@ public class ConfigBuilder {
                 }
                 if (isInclude) {
                     sql.append(" AND ").append(dbQuery.tableName()).append(" IN (")
-                        .append(Arrays.stream(config.getInclude()).map(tb -> "'" + tb + "'").collect(Collectors.joining(","))).append(")");
+                        .append(config.getInclude().stream().map(tb -> "'" + tb + "'").collect(Collectors.joining(","))).append(")");
                 } else if (isExclude) {
                     sql.append(" AND ").append(dbQuery.tableName()).append(" NOT IN (")
-                        .append(Arrays.stream(config.getExclude()).map(tb -> "'" + tb + "'").collect(Collectors.joining(","))).append(")");
+                        .append(config.getExclude().stream().map(tb -> "'" + tb + "'").collect(Collectors.joining(","))).append(")");
                 }
             }
             TableInfo tableInfo;
@@ -571,11 +463,9 @@ public class ConfigBuilder {
             String tableFieldsSql = dbQuery.tableFieldsSql();
             Set<String> h2PkColumns = new HashSet<>();
             if (DbType.POSTGRE_SQL == dbType) {
-                tableFieldsSql = String.format(tableFieldsSql, dataSourceConfig.getSchemaName(), tableName);
+                tableFieldsSql = String.format(tableFieldsSql, tableName);
             } else if (DbType.KINGBASE_ES == dbType) {
                 tableFieldsSql = String.format(tableFieldsSql, dataSourceConfig.getSchemaName(), tableName);
-            } else if (DbType.OSCAR == dbType) {
-                tableFieldsSql = String.format(tableFieldsSql, tableName);
             } else if (DbType.DB2 == dbType) {
                 tableFieldsSql = String.format(tableFieldsSql, dataSourceConfig.getSchemaName(), tableName);
             } else if (DbType.ORACLE == dbType) {
@@ -639,12 +529,10 @@ public class ConfigBuilder {
                     field.setName(columnName);
                     String newColumnName = columnName;
                     IKeyWordsHandler keyWordsHandler = dataSourceConfig.getKeyWordsHandler();
-                    if (keyWordsHandler != null) {
-                        if (keyWordsHandler.isKeyWords(columnName)) {
-                            System.err.println(String.format("当前表[%s]存在字段[%s]为数据库关键字或保留字!", tableName, columnName));
-                            field.setKeyWords(true);
-                            newColumnName = keyWordsHandler.formatColumn(columnName);
-                        }
+                    if (keyWordsHandler != null && keyWordsHandler.isKeyWords(columnName)) {
+                        System.err.printf("当前表[%s]存在字段[%s]为数据库关键字或保留字!%n", tableName, columnName);
+                        field.setKeyWords(true);
+                        newColumnName = keyWordsHandler.formatColumn(columnName);
                     }
                     field.setColumnName(newColumnName);
                     field.setType(results.getString(dbQuery.fieldType()));
@@ -732,9 +620,9 @@ public class ConfigBuilder {
      * @param prefix   ignore
      * @return 根据策略返回处理后的名称
      */
-    private String processName(String name, NamingStrategy strategy, String[] prefix) {
+    private String processName(String name, NamingStrategy strategy, Set<String> prefix) {
         String propertyName;
-        if (ArrayUtils.isNotEmpty(prefix)) {
+        if (prefix.size() > 0) {
             if (strategy == NamingStrategy.underline_to_camel) {
                 // 删除前缀、下划线转驼峰
                 propertyName = NamingStrategy.removePrefixAndCamel(name, prefix);

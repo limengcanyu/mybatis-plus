@@ -16,6 +16,8 @@
 package com.baomidou.mybatisplus.extension.plugins.handler;
 
 /**
+ * 动态表名处理器
+ *
  * @author miemie
  * @since 3.4.0
  */
