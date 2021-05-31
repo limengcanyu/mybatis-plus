@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.extension.plugins.inner;
 
@@ -23,6 +23,8 @@ import lombok.*;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SetOperationList;
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -30,6 +32,7 @@ import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
 
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * 数据权限处理器
@@ -55,8 +58,24 @@ public class DataPermissionInterceptor extends JsqlParserSupport implements Inne
 
     @Override
     protected void processSelect(Select select, int index, String sql, Object obj) {
-        PlainSelect plainSelect = (PlainSelect) select.getSelectBody();
-        Expression sqlSegment = dataPermissionHandler.getSqlSegment(plainSelect.getWhere(), (String) obj);
+        SelectBody selectBody = select.getSelectBody();
+        if (selectBody instanceof PlainSelect) {
+            this.setWhere((PlainSelect) selectBody, (String) obj);
+        } else if (selectBody instanceof SetOperationList) {
+            SetOperationList setOperationList = (SetOperationList) selectBody;
+            List<SelectBody> selectBodyList = setOperationList.getSelects();
+            selectBodyList.forEach(s -> this.setWhere((PlainSelect) s, (String) obj));
+        }
+    }
+
+    /**
+     * 设置 where 条件
+     *
+     * @param plainSelect  查询对象
+     * @param whereSegment 查询条件片段
+     */
+    protected void setWhere(PlainSelect plainSelect, String whereSegment) {
+        Expression sqlSegment = dataPermissionHandler.getSqlSegment(plainSelect.getWhere(), whereSegment);
         if (null != sqlSegment) {
             plainSelect.setWhere(sqlSegment);
         }

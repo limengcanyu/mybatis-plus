@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.extension.service.impl;
 
@@ -65,7 +65,7 @@ public class ServiceImpl<M extends BaseMapper<T>, T> implements IService<T> {
         return entityClass;
     }
 
-    protected Class<T> mapperClass = currentMapperClass();
+    protected Class<M> mapperClass = currentMapperClass();
 
     /**
      * 判断数据库操作是否成功
@@ -79,13 +79,14 @@ public class ServiceImpl<M extends BaseMapper<T>, T> implements IService<T> {
         return SqlHelper.retBool(result);
     }
 
-    protected Class<T> currentMapperClass() {
-        return (Class<T>) ReflectionKit.getSuperClassGenericType(getClass(), 0);
+    protected Class<M> currentMapperClass() {
+        return (Class<M>) ReflectionKit.getSuperClassGenericType(this.getClass(), ServiceImpl.class, 0);
     }
 
     protected Class<T> currentModelClass() {
-        return (Class<T>) ReflectionKit.getSuperClassGenericType(getClass(), 1);
+        return (Class<T>) ReflectionKit.getSuperClassGenericType(this.getClass(), ServiceImpl.class, 1);
     }
+
 
     /**
      * 批量操作 SqlSession

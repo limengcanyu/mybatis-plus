@@ -1,26 +1,20 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.core;
 
-import com.baomidou.mybatisplus.core.config.GlobalConfig;
-import com.baomidou.mybatisplus.core.executor.MybatisBatchExecutor;
-import com.baomidou.mybatisplus.core.executor.MybatisCachingExecutor;
-import com.baomidou.mybatisplus.core.executor.MybatisReuseExecutor;
-import com.baomidou.mybatisplus.core.executor.MybatisSimpleExecutor;
-import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.ibatis.binding.MapperRegistry;
@@ -76,35 +70,9 @@ public class MybatisConfiguration extends Configuration {
     @Getter
     private boolean useGeneratedShortKey = true;
 
-    /**
-     * @deprecated 该属性将会随着 com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor 插件的移除而移除
-     */
-    @Deprecated
-    @Setter
-    @Getter
-    private boolean useDeprecatedExecutor = true;
-
     public MybatisConfiguration(Environment environment) {
         this();
         this.environment = environment;
-    }
-
-    /**
-     * @return GlobalConfig
-     * @deprecated 3.4.0 please use {@link GlobalConfigUtils#getGlobalConfig(Configuration)}
-     */
-    @Deprecated
-    public GlobalConfig getGlobalConfig() {
-        return GlobalConfigUtils.getGlobalConfig(this);
-    }
-
-    /**
-     * @param globalConfig GlobalConfig
-     * @deprecated 3.4.0 please use {@link GlobalConfigUtils#setGlobalConfig(Configuration, GlobalConfig)}
-     */
-    @Deprecated
-    public void setGlobalConfig(GlobalConfig globalConfig) {
-        GlobalConfigUtils.setGlobalConfig(this, globalConfig);
     }
 
     /**
@@ -340,23 +308,6 @@ public class MybatisConfiguration extends Configuration {
 
     @Override
     public Executor newExecutor(Transaction transaction, ExecutorType executorType) {
-        if (useDeprecatedExecutor) {
-            executorType = executorType == null ? defaultExecutorType : executorType;
-            executorType = executorType == null ? ExecutorType.SIMPLE : executorType;
-            Executor executor;
-            if (ExecutorType.BATCH == executorType) {
-                executor = new MybatisBatchExecutor(this, transaction);
-            } else if (ExecutorType.REUSE == executorType) {
-                executor = new MybatisReuseExecutor(this, transaction);
-            } else {
-                executor = new MybatisSimpleExecutor(this, transaction);
-            }
-            if (cacheEnabled) {
-                executor = new MybatisCachingExecutor(executor);
-            }
-            executor = (Executor) interceptorChain.pluginAll(executor);
-            return executor;
-        }
         return super.newExecutor(transaction, executorType);
     }
 

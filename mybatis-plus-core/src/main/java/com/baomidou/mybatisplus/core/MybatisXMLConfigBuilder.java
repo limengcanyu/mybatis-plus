@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.core;
 
@@ -271,8 +271,6 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
         configuration.setLogPrefix(props.getProperty("logPrefix"));
         configuration.setConfigurationFactory(resolveClass(props.getProperty("configurationFactory")));
         configuration.setShrinkWhitespacesInSql(booleanValueOf(props.getProperty("shrinkWhitespacesInSql"), false));
-        // TODO MybatisConfiguration 独有的属性
-        ((MybatisConfiguration) configuration).setUseDeprecatedExecutor(booleanValueOf(props.getProperty("useNewExecutor"), true));
         ((MybatisConfiguration) configuration).setUseGeneratedShortKey(booleanValueOf(props.getProperty("useGeneratedShortKey"), true));
     }
 
@@ -291,6 +289,7 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
                         .transactionFactory(txFactory)
                         .dataSource(dataSource);
                     configuration.setEnvironment(environmentBuilder.build());
+                    break;
                 }
             }
         }
@@ -376,14 +375,16 @@ public class MybatisXMLConfigBuilder extends BaseBuilder {
                     String mapperClass = child.getStringAttribute("class");
                     if (resource != null && url == null && mapperClass == null) {
                         ErrorContext.instance().resource(resource);
-                        InputStream inputStream = Resources.getResourceAsStream(resource);
-                        XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
-                        mapperParser.parse();
+                        try(InputStream inputStream = Resources.getResourceAsStream(resource)) {
+                            XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
+                            mapperParser.parse();
+                        }
                     } else if (resource == null && url != null && mapperClass == null) {
                         ErrorContext.instance().resource(url);
-                        InputStream inputStream = Resources.getUrlAsStream(url);
-                        XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
-                        mapperParser.parse();
+                        try(InputStream inputStream = Resources.getUrlAsStream(url)){
+                            XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
+                            mapperParser.parse();
+                        }
                     } else if (resource == null && url == null && mapperClass != null) {
                         Class<?> mapperInterface = Resources.classForName(mapperClass);
                         configuration.addMapper(mapperInterface);

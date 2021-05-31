@@ -1,22 +1,21 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.core.override;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.metadata.PageList;
 import com.baomidou.mybatisplus.core.toolkit.Assert;
 import org.apache.ibatis.binding.BindingException;
 import org.apache.ibatis.binding.MapperMethod;
@@ -81,12 +80,12 @@ public class MybatisMapperMethod {
                 } else if (method.returnsCursor()) {
                     result = executeForCursor(sqlSession, args);
                 } else {
-                    Object param = method.convertArgsToSqlCommandParam(args);
                     // TODO 这里下面改了
                     if (IPage.class.isAssignableFrom(method.getReturnType())) {
                         result = executeForIPage(sqlSession, args);
                         // TODO 这里上面改了
                     } else {
+                        Object param = method.convertArgsToSqlCommandParam(args);
                         result = sqlSession.selectOne(command.getName(), param);
                         if (method.returnsOptional()
                             && (result == null || !method.getReturnType().equals(result.getClass()))) {
@@ -120,13 +119,7 @@ public class MybatisMapperMethod {
         Assert.notNull(result, "can't found IPage for args!");
         Object param = method.convertArgsToSqlCommandParam(args);
         List<E> list = sqlSession.selectList(command.getName(), param);
-        if (list instanceof PageList) {
-            PageList<E> pageList = (PageList<E>) list;
-            result.setRecords(pageList.getRecords());
-            result.setTotal(pageList.getTotal());
-        } else {
-            result.setRecords(list);
-        }
+        result.setRecords(list);
         return result;
     }
 

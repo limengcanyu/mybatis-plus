@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.core.metadata;
 
@@ -38,6 +38,7 @@ import java.util.Map;
 @Getter
 @ToString
 @EqualsAndHashCode
+@SuppressWarnings("serial")
 public class TableFieldInfo implements Constants {
 
     /**
@@ -58,6 +59,10 @@ public class TableFieldInfo implements Constants {
      * 属性表达式#{property}, 可以指定jdbcType, typeHandler等
      */
     private final String el;
+    /**
+     * jdbcType, typeHandler等部分
+     */
+    private final String mapping;
     /**
      * 属性类型
      */
@@ -157,6 +162,32 @@ public class TableFieldInfo implements Constants {
     private Class<? extends TypeHandler<?>> typeHandler;
 
     /**
+     * 是否存在OrderBy注解
+     */
+    private boolean isOrderBy;
+    /**
+     * 排序类型
+     */
+    private String orderByType;
+    /**
+     * 排序顺序
+     */
+    private short orderBySort;
+
+    /**
+     * 全新的 存在 TableField 注解时使用的构造函数
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public TableFieldInfo(GlobalConfig.DbConfig dbConfig, TableInfo tableInfo, Field field, TableField tableField,
+                          Reflector reflector, boolean existTableLogic, boolean isOrderBy) {
+        this(dbConfig, tableInfo, field, tableField, reflector, existTableLogic);
+        this.isOrderBy = isOrderBy;
+        if (isOrderBy) {
+            initOrderBy(field);
+        }
+    }
+
+    /**
      * 全新的 存在 TableField 注解时使用的构造函数
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -177,9 +208,12 @@ public class TableFieldInfo implements Constants {
         final Class<? extends TypeHandler> typeHandler = tableField.typeHandler();
         final String numericScale = tableField.numericScale();
         String el = this.property;
+        if (StringUtils.isNotBlank(tableField.property())) {
+            el = tableField.property();
+        }
         if (JdbcType.UNDEFINED != jdbcType) {
             this.jdbcType = jdbcType;
-            el += (COMMA + "jdbcType=" + jdbcType.name());
+            el += (COMMA + SqlScriptUtils.mappingJdbcType(jdbcType));
         }
         if (UnknownTypeHandler.class != typeHandler) {
             this.typeHandler = (Class<? extends TypeHandler<?>>) typeHandler;
@@ -199,12 +233,14 @@ public class TableFieldInfo implements Constants {
                 }
                 el += (COMMA + "javaType=" + javaType);
             }
-            el += (COMMA + "typeHandler=" + typeHandler.getName());
+            el += (COMMA + SqlScriptUtils.mappingTypeHandler(this.typeHandler));
         }
         if (StringUtils.isNotBlank(numericScale)) {
-            el += (COMMA + "numericScale=" + numericScale);
+            el += (COMMA + SqlScriptUtils.mappingNumericScale(Integer.valueOf(numericScale)));
         }
         this.el = el;
+        int index = el.indexOf(COMMA);
+        this.mapping = index > 0 ? el.substring(++index) : null;
         this.initLogicDelete(dbConfig, field, existTableLogic);
 
         String column = tableField.value();
@@ -234,7 +270,7 @@ public class TableFieldInfo implements Constants {
             if (StringUtils.isNotBlank(propertyFormat)) {
                 asProperty = String.format(propertyFormat, this.property);
             }
-            this.sqlSelect += (" AS " + asProperty);
+            this.sqlSelect += (AS + asProperty);
         }
 
         this.insertStrategy = this.chooseFieldStrategy(tableField.insertStrategy(), dbConfig.getInsertStrategy());
@@ -261,6 +297,18 @@ public class TableFieldInfo implements Constants {
      * 不存在 TableField 注解时, 使用的构造函数
      */
     public TableFieldInfo(GlobalConfig.DbConfig dbConfig, TableInfo tableInfo, Field field, Reflector reflector,
+                          boolean existTableLogic, boolean isOrderBy) {
+        this(dbConfig, tableInfo, field, reflector, existTableLogic);
+        this.isOrderBy = isOrderBy;
+        if (isOrderBy) {
+            initOrderBy(field);
+        }
+    }
+
+    /**
+     * 不存在 TableField 注解时, 使用的构造函数
+     */
+    public TableFieldInfo(GlobalConfig.DbConfig dbConfig, TableInfo tableInfo, Field field, Reflector reflector,
                           boolean existTableLogic) {
         field.setAccessible(true);
         this.field = field;
@@ -270,6 +318,7 @@ public class TableFieldInfo implements Constants {
         this.isPrimitive = this.propertyType.isPrimitive();
         this.isCharSequence = StringUtils.isCharSequence(this.propertyType);
         this.el = this.property;
+        this.mapping = null;
         this.insertStrategy = dbConfig.getInsertStrategy();
         this.updateStrategy = dbConfig.getUpdateStrategy();
         this.whereStrategy = dbConfig.getSelectStrategy();
@@ -300,7 +349,23 @@ public class TableFieldInfo implements Constants {
             if (StringUtils.isNotBlank(propertyFormat)) {
                 asProperty = String.format(propertyFormat, this.property);
             }
-            this.sqlSelect += (" AS " + asProperty);
+            this.sqlSelect += (AS + asProperty);
+        }
+    }
+
+    /**
+     * 排序初始化
+     *
+     * @param field 字段
+     */
+    private void initOrderBy(Field field) {
+        OrderBy orderBy = field.getAnnotation(OrderBy.class);
+        if (null != orderBy) {
+            this.isOrderBy = true;
+            this.orderBySort = orderBy.sort();
+            this.orderByType = orderBy.isDesc() ? "desc" : "asc";
+        } else {
+            this.isOrderBy = false;
         }
     }
 

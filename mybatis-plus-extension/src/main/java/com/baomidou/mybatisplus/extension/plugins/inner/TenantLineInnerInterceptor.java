@@ -1,31 +1,27 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.extension.plugins.inner;
 
-import com.baomidou.mybatisplus.core.parser.SqlParserHelper;
 import com.baomidou.mybatisplus.core.plugins.InterceptorIgnoreHelper;
 import com.baomidou.mybatisplus.core.toolkit.*;
 import com.baomidou.mybatisplus.extension.parser.JsqlParserSupport;
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
 import com.baomidou.mybatisplus.extension.toolkit.PropertyMapper;
 import lombok.*;
-import net.sf.jsqlparser.expression.BinaryExpression;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.NotExpression;
-import net.sf.jsqlparser.expression.Parenthesis;
+import net.sf.jsqlparser.expression.*;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.*;
@@ -65,7 +61,6 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
     @Override
     public void beforeQuery(Executor executor, MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql) throws SQLException {
         if (InterceptorIgnoreHelper.willIgnoreTenantLine(ms.getId())) return;
-        if (SqlParserHelper.getSqlParserInfo(ms)) return;
         PluginUtils.MPBoundSql mpBs = PluginUtils.mpBoundSql(boundSql);
         mpBs.sql(parserSingle(mpBs.sql(), null));
     }
@@ -77,7 +72,6 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
         SqlCommandType sct = ms.getSqlCommandType();
         if (sct == SqlCommandType.INSERT || sct == SqlCommandType.UPDATE || sct == SqlCommandType.DELETE) {
             if (InterceptorIgnoreHelper.willIgnoreTenantLine(ms.getId())) return;
-            if (SqlParserHelper.getSqlParserInfo(ms)) return;
             PluginUtils.MPBoundSql mpBs = mpSh.mPBoundSql();
             mpBs.sql(parserMulti(mpBs.sql(), null));
         }
@@ -103,8 +97,9 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
             processSelectBody(withItem.getSelectBody());
         } else {
             SetOperationList operationList = (SetOperationList) selectBody;
-            if (operationList.getSelects() != null && operationList.getSelects().size() > 0) {
-                operationList.getSelects().forEach(this::processSelectBody);
+            List<SelectBody> selectBodys = operationList.getSelects();
+            if (CollectionUtils.isNotEmpty(selectBodys)) {
+                selectBodys.forEach(this::processSelectBody);
             }
         }
     }
@@ -126,6 +121,16 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
             return;
         }
         columns.add(new Column(tenantLineHandler.getTenantIdColumn()));
+
+        // fixed gitee pulls/141 duplicate update
+        List<Expression> duplicateUpdateColumns = insert.getDuplicateUpdateExpressionList();
+        if (CollectionUtils.isNotEmpty(duplicateUpdateColumns)) {
+            EqualsTo equalsTo = new EqualsTo();
+            equalsTo.setLeftExpression(new StringValue(tenantLineHandler.getTenantIdColumn()));
+            equalsTo.setRightExpression(tenantLineHandler.getTenantId());
+            duplicateUpdateColumns.add(equalsTo);
+        }
+
         Select select = insert.getSelect();
         if (select != null) {
             this.processInsertSelect(select.getSelectBody());
@@ -197,8 +202,8 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
         PlainSelect plainSelect = (PlainSelect) selectBody;
         FromItem fromItem = plainSelect.getFromItem();
         if (fromItem instanceof Table) {
-            Table fromTable = (Table) fromItem;
-            plainSelect.setWhere(builderExpression(plainSelect.getWhere(), fromTable));
+            // fixed gitee pulls/141 duplicate update
+            processPlainSelect(plainSelect);
             appendSelectItem(plainSelect.getSelectItems());
         } else if (fromItem instanceof SubSelect) {
             SubSelect subSelect = (SubSelect) fromItem;
@@ -237,8 +242,13 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
         } else {
             processFromItem(fromItem);
         }
+        //#3087 github
+        List<SelectItem> selectItems = plainSelect.getSelectItems();
+        if (CollectionUtils.isNotEmpty(selectItems)) {
+            selectItems.forEach(this::processSelectItem);
+        }
         List<Join> joins = plainSelect.getJoins();
-        if (joins != null && joins.size() > 0) {
+        if (CollectionUtils.isNotEmpty(joins)) {
             joins.forEach(j -> {
                 processJoin(j);
                 processFromItem(j.getRightItem());
@@ -300,6 +310,37 @@ public class TenantLineInnerInterceptor extends JsqlParserSupport implements Inn
                 Parenthesis expression = (Parenthesis) where;
                 processWhereSubSelect(expression.getExpression());
             }
+        }
+    }
+
+    protected void processSelectItem(SelectItem selectItem) {
+        if (selectItem instanceof SelectExpressionItem) {
+            SelectExpressionItem selectExpressionItem = (SelectExpressionItem) selectItem;
+            if (selectExpressionItem.getExpression() instanceof SubSelect) {
+                processSelectBody(((SubSelect) selectExpressionItem.getExpression()).getSelectBody());
+            } else if (selectExpressionItem.getExpression() instanceof Function) {
+                processFunction((Function) selectExpressionItem.getExpression());
+            }
+        }
+    }
+
+    /**
+     * 处理函数
+     * <p>支持: 1. select fun(args..) 2. select fun1(fun2(args..),args..)<p>
+     * <p> fixed gitee pulls/141</p>
+     *
+     * @param function
+     */
+    protected void processFunction(Function function) {
+        ExpressionList parameters = function.getParameters();
+        if (parameters != null) {
+            parameters.getExpressions().forEach(expression -> {
+                if (expression instanceof SubSelect) {
+                    processSelectBody(((SubSelect) expression).getSelectBody());
+                } else if (expression instanceof Function) {
+                    processFunction((Function) expression);
+                }
+            });
         }
     }
 

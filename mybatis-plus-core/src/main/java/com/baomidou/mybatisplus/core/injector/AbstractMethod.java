@@ -1,24 +1,26 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.core.injector;
 
 import com.baomidou.mybatisplus.core.enums.SqlMethod;
 import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
+import com.baomidou.mybatisplus.core.toolkit.StringPool;
 import com.baomidou.mybatisplus.core.toolkit.sql.SqlScriptUtils;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.executor.keygen.KeyGenerator;
@@ -32,6 +34,7 @@ import org.apache.ibatis.mapping.StatementType;
 import org.apache.ibatis.scripting.LanguageDriver;
 import org.apache.ibatis.session.Configuration;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -178,8 +181,8 @@ public abstract class AbstractMethod implements Constants {
             // 逻辑删除
             String sqlScript = SqlScriptUtils.convertChoose("v == null", " ${k} IS NULL ",
                 " ${k} = #{v} ");
-            sqlScript = SqlScriptUtils.convertForeach(sqlScript, "cm", "k", "v", "AND");
-            sqlScript = SqlScriptUtils.convertIf(sqlScript, "cm != null and !cm.isEmpty", true);
+            sqlScript = SqlScriptUtils.convertForeach(sqlScript, COLUMN_MAP, "k", "v", "AND");
+            sqlScript = SqlScriptUtils.convertIf(sqlScript, String.format("%s != null and !%s.isEmpty", COLUMN_MAP, COLUMN_MAP), true);
             sqlScript += (NEWLINE + table.getLogicDeleteSql(true, true));
             sqlScript = SqlScriptUtils.convertWhere(sqlScript);
             return sqlScript;
@@ -233,6 +236,22 @@ public abstract class AbstractMethod implements Constants {
             sqlScript = SqlScriptUtils.convertIf(sqlScript, String.format("%s != null", WRAPPER), true);
             return newLine ? NEWLINE + sqlScript : sqlScript;
         }
+    }
+
+    protected String sqlOrderBy(TableInfo tableInfo) {
+        /* 不存在排序字段，直接返回空 */
+        List<TableFieldInfo> orderByFields = tableInfo.getOrderByFields();
+        if (CollectionUtils.isEmpty(orderByFields)) {
+            return StringPool.EMPTY;
+        }
+        orderByFields.sort(Comparator.comparingInt(TableFieldInfo::getOrderBySort));
+        StringBuilder sql = new StringBuilder();
+        sql.append(NEWLINE).append(" ORDER BY ");
+        sql.append(orderByFields.stream().map(tfi -> String.format("%s %s", tfi.getColumn(),
+            tfi.getOrderByType())).collect(joining(",")));
+        /* 当wrapper中传递了orderBy属性，@orderBy注解失效 */
+        return SqlScriptUtils.convertIf(sql.toString(), String.format("%s == null or %s == null or %s == null or %s.size() == 0",
+            WRAPPER, WRAPPER_EXPRESSION, WRAPPER_EXPRESSION_ORDER, WRAPPER_EXPRESSION_ORDER), true);
     }
 
     /**

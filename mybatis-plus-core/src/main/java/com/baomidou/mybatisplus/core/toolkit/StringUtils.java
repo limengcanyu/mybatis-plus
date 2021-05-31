@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.core.toolkit;
 
@@ -19,6 +19,7 @@ import com.baomidou.mybatisplus.core.toolkit.sql.StringEscape;
 import com.baomidou.mybatisplus.core.toolkit.support.BiIntFunction;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -540,8 +541,8 @@ public final class StringUtils {
      * StringUtils.equals("abc", "ABC") = false
      * </pre>
      *
-     * @param cs1  第一个字符串, 可为 {@code null}
-     * @param cs2  第二个字符串, 可为 {@code null}
+     * @param cs1 第一个字符串, 可为 {@code null}
+     * @param cs2 第二个字符串, 可为 {@code null}
      * @return {@code true} 如果两个字符串相同, 或者都为 {@code null}
      * @see Object#equals(Object)
      */
@@ -566,5 +567,22 @@ public final class StringUtils {
             }
         }
         return true;
+    }
+
+    /**
+     * 字符串去除空白内容：
+     * \n 回车
+     * \t 水平制表符
+     * \s 空格
+     * \r 换行
+     *
+     * @param str 字符串
+     * @return
+     */
+    public static String replaceBlank(String str) {
+        Objects.requireNonNull(str);
+        Pattern pattern = Pattern.compile("\\s*|\t|\r|\n");
+        Matcher matcher = pattern.matcher(str);
+        return matcher.replaceAll("");
     }
 }

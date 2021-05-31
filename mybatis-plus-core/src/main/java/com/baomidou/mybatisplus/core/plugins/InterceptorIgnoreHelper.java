@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.baomidou.mybatisplus.core.plugins;
 
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
@@ -84,6 +99,10 @@ public abstract class InterceptorIgnoreHelper {
         return willIgnore(id, InterceptorIgnoreCache::getDataPermission);
     }
 
+    public static boolean willIgnoreSharding(String id) {
+        return willIgnore(id, InterceptorIgnoreCache::getSharding);
+    }
+
     public static boolean willIgnoreOthersByKey(String id, String key) {
         return willIgnore(id, i -> CollectionUtils.isNotEmpty(i.getOthers()) && i.getOthers().getOrDefault(key, false));
     }
@@ -118,6 +137,7 @@ public abstract class InterceptorIgnoreHelper {
             .blockAttack(getBoolean("blockAttack", name, ignore.blockAttack()))
             .illegalSql(getBoolean("illegalSql", name, ignore.illegalSql()))
             .dataPermission(getBoolean("dataPermission", name, ignore.dataPermission()))
+            .sharding(getBoolean("sharding", name, ignore.sharding()))
             .others(getOthers(name, ignore.others()))
             .build();
     }
@@ -193,6 +213,7 @@ public abstract class InterceptorIgnoreHelper {
         private Boolean blockAttack;
         private Boolean illegalSql;
         private Boolean dataPermission;
+        private Boolean sharding;
         private Map<String, Boolean> others;
     }
 }

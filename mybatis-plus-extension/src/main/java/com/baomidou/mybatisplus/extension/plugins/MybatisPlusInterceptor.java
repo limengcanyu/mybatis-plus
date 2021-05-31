@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.baomidou.mybatisplus.extension.plugins;
 
 import com.baomidou.mybatisplus.core.toolkit.ClassUtils;
@@ -26,6 +41,7 @@ import java.util.*;
 @Intercepts(
     {
         @Signature(type = StatementHandler.class, method = "prepare", args = {Connection.class, Integer.class}),
+        @Signature(type = StatementHandler.class, method = "getBoundSql", args = {}),
         @Signature(type = Executor.class, method = "update", args = {MappedStatement.class, Object.class}),
         @Signature(type = Executor.class, method = "query", args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class}),
         @Signature(type = Executor.class, method = "query", args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class, CacheKey.class, BoundSql.class}),
@@ -74,10 +90,17 @@ public class MybatisPlusInterceptor implements Interceptor {
         } else {
             // StatementHandler
             final StatementHandler sh = (StatementHandler) target;
-            Connection connections = (Connection) args[0];
-            Integer transactionTimeout = (Integer) args[1];
-            for (InnerInterceptor innerInterceptor : interceptors) {
-                innerInterceptor.beforePrepare(sh, connections, transactionTimeout);
+            // 目前只有StatementHandler.getBoundSql方法args才为null
+            if (null == args) {
+                for (InnerInterceptor innerInterceptor : interceptors) {
+                    innerInterceptor.beforeGetBoundSql(sh);
+                }
+            } else {
+                Connection connections = (Connection) args[0];
+                Integer transactionTimeout = (Integer) args[1];
+                for (InnerInterceptor innerInterceptor : interceptors) {
+                    innerInterceptor.beforePrepare(sh, connections, transactionTimeout);
+                }
             }
         }
         return invocation.proceed();

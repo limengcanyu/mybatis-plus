@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.annotation;
 
@@ -55,7 +55,7 @@ public @interface TableField {
     /**
      * 字段 where 实体查询比较条件
      * <p>
-     * 默认 {@link SqlCondition.EQUAL}
+     * 默认 {@link SqlCondition#EQUAL}
      */
     String condition() default "";
 
@@ -131,8 +131,15 @@ public @interface TableField {
     boolean keepGlobalFormat() default false;
 
     /**
+     * {@link ResultMapping#property} and {@link ParameterMapping#property}
+     *
+     * @since 3.4.4
+     */
+    String property() default "";
+
+    /**
      * JDBC类型 (该默认值不代表会按照该值生效),
-     * 只生效与 mp 自动注入的 method,
+     * 只生效于 mp 自动注入的 method,
      * 建议配合 {@link TableName#autoResultMap()} 一起使用
      * <p>
      * {@link ResultMapping#jdbcType} and {@link ParameterMapping#jdbcType}
@@ -143,7 +150,7 @@ public @interface TableField {
 
     /**
      * 类型处理器 (该默认值不代表会按照该值生效),
-     * 只生效与 mp 自动注入的 method,
+     * 只生效于 mp 自动注入的 method,
      * 建议配合 {@link TableName#autoResultMap()} 一起使用
      * <p>
      * {@link ResultMapping#typeHandler} and {@link ParameterMapping#typeHandler}

@@ -1,28 +1,26 @@
 /*
- * Copyright (c) 2011-2020, baomidou (jobob@qq.com).
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- * <p>
- * https://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright (c) 2011-2021, baomidou (jobob@qq.com).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.baomidou.mybatisplus.extension.toolkit;
 
 import com.baomidou.mybatisplus.core.enums.SqlMethod;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.core.toolkit.Assert;
-import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
-import com.baomidou.mybatisplus.core.toolkit.ExceptionUtils;
-import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
-import com.baomidou.mybatisplus.core.toolkit.StringPool;
+import com.baomidou.mybatisplus.core.toolkit.*;
+import lombok.SneakyThrows;
+import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.reflection.ExceptionUtil;
 import org.apache.ibatis.session.ExecutorType;
@@ -35,10 +33,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * SQL 辅助类
@@ -125,31 +123,22 @@ public final class SqlHelper {
      * @return ignore
      */
     public static <E> E getObject(Log log, List<E> list) {
+        return getObject(() -> log, list);
+    }
+
+    /**
+     * @since 3.4.3
+     */
+    public static <E> E getObject(Supplier<Log> supplier, List<E> list) {
         if (CollectionUtils.isNotEmpty(list)) {
             int size = list.size();
             if (size > 1) {
+                Log log = supplier.get();
                 log.warn(String.format("Warn: execute Method There are  %s results.", size));
             }
             return list.get(0);
         }
         return null;
-    }
-
-    /**
-     * 清理缓存.
-     * 批量插入因为无法重用sqlSession，只能新开启一个sqlSession
-     *
-     * @param clazz 实体类
-     * @deprecated 3.3.1
-     */
-    @Deprecated
-    public static void clearCache(Class<?> clazz) {
-        SqlSessionFactory sqlSessionFactory = GlobalConfigUtils.currentSessionFactory(clazz);
-        SqlSessionHolder sqlSessionHolder = (SqlSessionHolder) TransactionSynchronizationManager.getResource(sqlSessionFactory);
-        if (sqlSessionHolder != null) {
-            SqlSession sqlSession = sqlSessionHolder.getSqlSession();
-            sqlSession.clearCache();
-        }
     }
 
     /**
@@ -161,6 +150,7 @@ public final class SqlHelper {
      * @return 操作结果
      * @since 3.4.0
      */
+    @SneakyThrows
     public static boolean executeBatch(Class<?> entityClass, Log log, Consumer<SqlSession> consumer) {
         SqlSessionFactory sqlSessionFactory = sqlSessionFactory(entityClass);
         SqlSessionHolder sqlSessionHolder = (SqlSessionHolder) TransactionSynchronizationManager.getResource(sqlSessionFactory);
@@ -173,7 +163,7 @@ public final class SqlHelper {
         }
         SqlSession sqlSession = sqlSessionFactory.openSession(ExecutorType.BATCH);
         if (!transaction) {
-            log.warn("SqlSession [" + sqlSession + "] was not registered for synchronization because DataSource is not transactional");
+            log.warn("SqlSession [" + sqlSession + "] Transaction not enabled");
         }
         try {
             consumer.accept(sqlSession);
@@ -183,10 +173,13 @@ public final class SqlHelper {
         } catch (Throwable t) {
             sqlSession.rollback();
             Throwable unwrapped = ExceptionUtil.unwrapThrowable(t);
-            if (unwrapped instanceof RuntimeException) {
+            if (unwrapped instanceof PersistenceException) {
                 MyBatisExceptionTranslator myBatisExceptionTranslator
                     = new MyBatisExceptionTranslator(sqlSessionFactory.getConfiguration().getEnvironment().getDataSource(), true);
-                throw Objects.requireNonNull(myBatisExceptionTranslator.translateExceptionIfPossible((RuntimeException) unwrapped));
+                Throwable throwable = myBatisExceptionTranslator.translateExceptionIfPossible((PersistenceException) unwrapped);
+                if (throwable != null) {
+                    throw throwable;
+                }
             }
             throw ExceptionUtils.mpe(unwrapped);
         } finally {
